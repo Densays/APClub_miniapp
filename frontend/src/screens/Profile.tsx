@@ -32,6 +32,15 @@ function HeartIcon() {
   )
 }
 
+function MailIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="M3 7l9 6 9-6" />
+    </svg>
+  )
+}
+
 function ClockIcon() {
   return (
     <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
@@ -102,9 +111,11 @@ export default function Profile({
   const name = `${profile?.firstName || tg.firstName} ${profile?.lastName || tg.lastName}`.trim()
   const avatar = profile?.avatar || tg.avatar
   const initials = `${(profile?.firstName || tg.firstName)[0] ?? ''}${(profile?.lastName || tg.lastName)[0] ?? ''}` || 'AP'
-  const about = profile?.about || u.bio
-  const city = profile?.city || u.city
-  const marital = profile?.maritalStatus || u.family
+  // Реальные данные профиля. НЕ подставляем мок — у нового участника поля пустые.
+  const about = profile?.about ?? ''
+  const city = profile?.city ?? ''
+  const marital = profile?.maritalStatus ?? ''
+  const email = profile?.email ?? ''
 
   return (
     <div className="profile">
@@ -132,12 +143,15 @@ export default function Profile({
           <button className="pf-edit" onClick={onEdit}>Редактировать</button>
         </div>
 
-        {/* О себе */}
-        <div className="pf-about">
-          <div className="pf-about-bio">{about}</div>
-          <div className="pf-about-row"><PinIcon /><span>{city}</span></div>
-          <div className="pf-about-row"><HeartIcon /><span>{marital}</span></div>
-        </div>
+        {/* О себе — только заполненные поля (у нового участника блок пуст) */}
+        {(about || city || marital || email) && (
+          <div className="pf-about">
+            {about && <div className="pf-about-bio">{about}</div>}
+            {city && <div className="pf-about-row"><PinIcon /><span>{city}</span></div>}
+            {marital && <div className="pf-about-row"><HeartIcon /><span>{marital}</span></div>}
+            {email && <div className="pf-about-row"><MailIcon /><span>{email}</span></div>}
+          </div>
+        )}
 
         {/* Прогресс разблокировки */}
         <div className="pf-progress">
