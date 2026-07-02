@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import './Calendar.css'
 import { getProfiles } from '../api'
+import { LINKS, openLink } from '../mock'
 
 const MONTHS = [
   'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
@@ -24,7 +25,7 @@ function bdKey(bd?: string): string | null {
   return null
 }
 
-type Ev = { icon: string; title: string; text: string }
+type Ev = { icon: string; title: string; text: string; record?: boolean }
 
 export default function Calendar({ date = new Date() }: { date?: Date }) {
   const year = date.getFullYear()
@@ -66,8 +67,9 @@ export default function Calendar({ date = new Date() }: { date?: Date }) {
     const names = birthdays[`${pad(month + 1)}-${pad(selected)}`]
     if (names?.length) evs.push({ icon: '🎂', title: 'День рождения', text: `у резидента APClub ${names.join(', ')}` })
     if (dow === 1) evs.push({ icon: '📝', title: 'Начало недели', text: 'Поставь план на неделю' })
-    if (dow === 3) evs.push({ icon: '🎙️', title: 'Онлайн-среда', text: 'Сегодня онлайн-среда, 15:00 МСК' })
-    if (dow === 4) evs.push({ icon: '🎥', title: 'Эфир в клубе', text: 'Эфир в клубе в 19:00 МСК' })
+    const past = selected < today // день уже прошёл (текущий месяц) → есть запись
+    if (dow === 3) evs.push({ icon: '🎙️', title: 'Онлайн-среда', text: 'Онлайн-среда, 15:00 МСК', record: past })
+    if (dow === 4) evs.push({ icon: '🎥', title: 'Эфир в клубе', text: 'Эфир в клубе, 19:00 МСК', record: past })
     if (dow === 0) evs.push({ icon: '✅', title: 'Итоги недели', text: 'Подведи итоги недели' })
     return evs
   }, [selected, birthdays, year, month])
@@ -118,6 +120,9 @@ export default function Calendar({ date = new Date() }: { date?: Date }) {
                 <span className="cal-ev-text">
                   <span className="cal-ev-title">{e.title}</span>
                   <span className="cal-ev-sub">{e.text}</span>
+                  {e.record && (
+                    <button className="cal-ev-rec" onClick={() => openLink(LINKS.streams)}>▶ Посмотреть запись</button>
+                  )}
                 </span>
               </div>
             ))}

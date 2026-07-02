@@ -97,3 +97,10 @@
 .cal-ev-title { font-size: 0.78rem; font-weight: 700; color: var(--gold); }
 .cal-ev-sub { font-size: 0.72rem; color: var(--text-dim); line-height: 1.35; margin-top: 2px; }
 .cal-ev-empty { font-size: 0.78rem; color: var(--text-muted); }
+
+.cal-ev-rec {
+  margin-top: 6px; align-self: flex-start;
+  background: var(--gold); color: #1c1608; border: none;
+  border-radius: 8px; padding: 5px 11px; font-size: 0.72rem; font-weight: 700;
+  cursor: pointer; font-family: inherit;
+}

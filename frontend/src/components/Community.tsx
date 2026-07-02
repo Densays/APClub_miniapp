@@ -16,7 +16,7 @@ export default function Community({ onChat }: { onChat?: () => void }) {
   return (
     <div className="community">
       <div className="community-photo">
-        <img src="/community.png" alt="Сообщество AP Crypto Club" />
+        <img src="/community.jpg" alt="Сообщество AP Crypto Club" />
       </div>
       <button className="community-chat" onClick={onChat}>
         <TelegramLogo />
