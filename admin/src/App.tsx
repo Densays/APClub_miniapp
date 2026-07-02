@@ -73,12 +73,17 @@ function Shell({ catalog, theme, onToggleTheme, onCatalogChange, onLogout }: {
   onCatalogChange: (achievements: Achievement[]) => void; onLogout: () => void
 }) {
   const [section, setSection] = useState('dashboard')
+  const [openMemberId, setOpenMemberId] = useState<string | null>(null)
+
+  // Открыть карточку участника (напр. из таблицы лидеров).
+  const openMember = (id: string) => { setOpenMemberId(id); setSection('members') }
+  const selectSection = (key: string) => { if (key !== 'members') setOpenMemberId(null); setSection(key) }
 
   function render() {
     switch (section) {
-      case 'dashboard': return <Dashboard />
-      case 'members': return <Members catalog={catalog} />
-      case 'leaders': return <Leaders />
+      case 'dashboard': return <Dashboard onOpenMember={openMember} />
+      case 'members': return <Members catalog={catalog} openId={openMemberId} onConsumedOpen={() => setOpenMemberId(null)} />
+      case 'leaders': return <Leaders onOpenMember={openMember} />
       case 'showcase': return <ShowcaseAdmin />
       case 'achievements': return <AchievementsAdmin onSaved={onCatalogChange} />
       case 'notifications': return <Notifications />
@@ -88,7 +93,7 @@ function Shell({ catalog, theme, onToggleTheme, onCatalogChange, onLogout }: {
 
   return (
     <div className="layout">
-      <Sidebar current={section} onSelect={setSection} onLogout={onLogout} theme={theme} onToggleTheme={onToggleTheme} />
+      <Sidebar current={section} onSelect={selectSection} onLogout={onLogout} theme={theme} onToggleTheme={onToggleTheme} />
       <main className="content">{render()}</main>
     </div>
   )

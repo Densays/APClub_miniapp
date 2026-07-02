@@ -9,7 +9,7 @@ function Ava({ p, size = 40 }: { p: Profile; size?: number }) {
   return <span className="avatar" style={{ width: size, height: size, fontSize: size * 0.34 }}>{p.avatar ? <img src={p.avatar} alt="" /> : initialsOf(p)}</span>
 }
 
-export default function Leaders() {
+export default function Leaders({ onOpenMember }: { onOpenMember?: (id: string) => void }) {
   const [rows, setRows] = useState<Profile[] | null>(null)
 
   useEffect(() => {
@@ -47,7 +47,7 @@ export default function Leaders() {
 
           <div className="table">
             {rows.map((p, i) => (
-              <div className="tr row static" key={p.userId}>
+              <div className="tr row static lead-row" key={p.userId}>
                 <span className="rank">{i < 3 ? medal[i] : `#${i + 1}`}</span>
                 <span className="td-name"><Ava p={p} />
                   <span className="td-name-txt">
@@ -56,6 +56,9 @@ export default function Leaders() {
                   </span>
                 </span>
                 <span className="td-col"><b className="gold">★ {stars(p)}</b></span>
+                {onOpenMember && (
+                  <button className="btn sm btn-ghost lead-open" onClick={() => onOpenMember(p.userId)}>Перейти к участнику</button>
+                )}
               </div>
             ))}
           </div>

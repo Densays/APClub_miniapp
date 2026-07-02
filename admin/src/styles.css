@@ -289,3 +289,25 @@ textarea.input { resize: vertical; }
 .perk-access-t { flex: 1; font-size: 13.5px; }
 .perk-access-s { font-size: 12px; color: var(--gray2); white-space: nowrap; }
 .perk-access-s.ok { color: var(--green); }
+
+/* Управление каталогом ресурсов */
+.res-manage { margin-top: 12px; }
+.res-manage summary { cursor: pointer; font-size: 12.5px; color: var(--gold); user-select: none; }
+.res-manage summary:hover { text-decoration: underline; }
+
+/* Платежи резидентов (дашборд) */
+.pay-list { display: flex; flex-direction: column; gap: 6px; max-height: 340px; overflow-y: auto; }
+.pay-row { display: grid; grid-template-columns: 1.4fr 1fr 70px 64px; gap: 10px; align-items: center; width: 100%; text-align: left; background: var(--bg2); border: 1px solid var(--line); border-radius: 9px; padding: 8px 11px; cursor: pointer; color: var(--text); font-family: inherit; transition: .12s; }
+.pay-row:hover { border-color: var(--gold); }
+.pay-row.overdue { border-color: rgba(255,97,120,.3); }
+.pay-name { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pay-meta { font-size: 11.5px; color: var(--gray); white-space: nowrap; }
+.pay-bar { height: 6px; background: var(--line2); border-radius: 4px; overflow: hidden; }
+.pay-fill { display: block; height: 100%; border-radius: 4px; background: var(--green); }
+.pay-fill.warn { background: var(--gold); }
+.pay-fill.red { background: var(--danger); }
+.pay-days { font-size: 11.5px; text-align: right; color: var(--gray); white-space: nowrap; }
+.pay-days.warn { color: var(--gold); }
+.pay-days.red { color: var(--danger); }
+.pay-danger { color: var(--danger); font-weight: 700; }
+.lead-open { margin-left: 10px; }

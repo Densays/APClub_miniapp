@@ -46,6 +46,7 @@ export type Profile = {
   activatedAt?: number
   bonusMonths?: number
   accessUntil?: number
+  billingPeriod?: 'monthly' | 'quarterly' | 'semiannual' | 'annual'
   createdBy?: 'admin' | 'telegram'
   updatedAt?: number
   unlock?: Unlock
@@ -246,6 +247,21 @@ export async function testNotification(chatId: string, text: string, image?: str
     method: 'POST', headers: headers(), body: JSON.stringify({ chatId, text, image }),
   })
   return (await r.json().catch(() => ({ ok: false, error: 'network' }))) as { ok: boolean; error?: string }
+}
+
+// ── Каталог ресурсов (для выдачи доступа выбором из списка) ───────────────────
+export async function getResources(): Promise<string[]> {
+  const r = await fetch(`${API_BASE}/api/admin/resources`, { headers: headers() })
+  if (r.status === 401) throw new Error('unauth')
+  if (!r.ok) throw new Error(`Ресурсы не загрузились (${r.status})`)
+  return ((await r.json()).resources as string[]) ?? []
+}
+export async function saveResources(resources: string[]): Promise<string[]> {
+  const r = await fetch(`${API_BASE}/api/admin/resources`, {
+    method: 'PUT', headers: headers(), body: JSON.stringify({ resources }),
+  })
+  if (!r.ok) throw new Error(`Ресурсы не сохранились (${r.status})`)
+  return ((await r.json()).resources as string[]) ?? []
 }
 
 export async function getShowcase(): Promise<Perk[]> {

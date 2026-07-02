@@ -42,7 +42,8 @@ export type Profile = {
   // Прогресс разблокировки по месяцам (авто по времени + ручная корректировка):
   activatedAt?: number // дата активации (первый вход / ручное создание) — с неё идёт авто-отсчёт
   bonusMonths?: number // ручная корректировка админа (± месяцев к авто-отсчёту)
-  accessUntil?: number // срок доступа (timestamp). По истечении — вход в приложение закрыт
+  accessUntil?: number // срок доступа (timestamp) = дата следующего платежа. По истечении вход закрыт
+  billingPeriod?: 'monthly' | 'quarterly' | 'semiannual' | 'annual' // периодичность оплаты резидента
   grants?: string[] // ручные доступы к ресурсам (выдаёт админ поверх уровней)
   achievements?: string[] // id полученных ачивок (выдаёт админ/система)
   buddy?: { month: string; userId: string } // выбранный бадди на месяц (раз в месяц)
@@ -204,6 +205,12 @@ export function sanitizeAdminPatch(input: unknown): Partial<Profile> {
     // Срок доступа: number = timestamp, null = снять ограничение (бессрочно).
     if (obj.accessUntil === null) out.accessUntil = undefined
     else if (typeof obj.accessUntil === 'number') out.accessUntil = obj.accessUntil
+    // Периодичность оплаты (для диаграммы платежей на дашборде).
+    if (['monthly', 'quarterly', 'semiannual', 'annual'].includes(obj.billingPeriod as string)) {
+      out.billingPeriod = obj.billingPeriod as Profile['billingPeriod']
+    } else if (obj.billingPeriod === null || obj.billingPeriod === '') {
+      out.billingPeriod = undefined
+    }
     if (Array.isArray(obj.grants)) {
       out.grants = obj.grants
         .filter((x): x is string => typeof x === 'string')

@@ -1,8 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   getProfiles, updateProfile, createMember, deleteProfile, fileToAvatar, getShowcase,
+  getResources, saveResources,
   type Profile, type Catalog, type Perk,
 } from './api'
+
+const PERIODS: { key: NonNullable<Profile['billingPeriod']>; label: string }[] = [
+  { key: 'monthly', label: 'Ежемесячно' },
+  { key: 'quarterly', label: 'Ежеквартально' },
+  { key: 'semiannual', label: 'Раз в полгода' },
+  { key: 'annual', label: 'Ежегодно' },
+]
 
 const nameOf = (p: Profile) => `${p.firstName ?? ''} ${p.lastName ?? ''}`.trim() || 'Без имени'
 const initialsOf = (p: Profile) => (`${p.firstName?.[0] ?? ''}${p.lastName?.[0] ?? ''}`.toUpperCase() || 'AP')
@@ -16,7 +24,9 @@ function Avatar({ p, size = 40 }: { p: Profile; size?: number }) {
   )
 }
 
-export default function Members({ catalog }: { catalog: Catalog | null }) {
+export default function Members({ catalog, openId, onConsumedOpen }: {
+  catalog: Catalog | null; openId?: string | null; onConsumedOpen?: () => void
+}) {
   const [users, setUsers] = useState<Profile[] | null>(null)
   const [sel, setSel] = useState<Profile | null>(null)
   const [q, setQ] = useState('')
@@ -29,6 +39,14 @@ export default function Members({ catalog }: { catalog: Catalog | null }) {
     catch (e) { setErr((e as Error).message === 'unauth' ? 'Сессия истекла — войдите заново' : 'Не удалось загрузить участников') }
   }
   useEffect(() => { load() }, [])
+
+  // Открыть карточку конкретного участника (напр. переход из таблицы лидеров/дашборда).
+  useEffect(() => {
+    if (openId && users) {
+      const u = users.find((x) => x.userId === openId)
+      if (u) { setSel(u); onConsumedOpen?.() }
+    }
+  }, [openId, users, onConsumedOpen])
 
   function applyUpdate(p: Profile) {
     setUsers((us) => (us ? us.map((u) => (u.userId === p.userId ? { ...u, ...p } : u)) : us))
@@ -167,7 +185,10 @@ function MemberCard({ user, catalog, onBack, onUpdate, onDelete }: {
   const [ach, setAch] = useState<Set<string>>(new Set(user.achievements ?? []))
   const [access, setAccess] = useState<string>(dateToInput(user.accessUntil))
   const [grants, setGrants] = useState<string[]>(user.grants ?? [])
-  const [grantInput, setGrantInput] = useState('')
+  const [period, setPeriod] = useState<Profile['billingPeriod'] | ''>(user.billingPeriod ?? '')
+  const [resCatalog, setResCatalog] = useState<string[]>([])
+  const [grantPick, setGrantPick] = useState('')
+  const [newRes, setNewRes] = useState('')
   const [perks, setPerks] = useState<Perk[]>([])
   const [msg, setMsg] = useState('')
   const [confirmDel, setConfirmDel] = useState(false)
@@ -176,6 +197,7 @@ function MemberCard({ user, catalog, onBack, onUpdate, onDelete }: {
   const cat = catalog?.achievements ?? []
   // Перки витрины клуба — доступ по звёздам. Звёзды участника = число достижений.
   useEffect(() => { getShowcase().then(setPerks).catch(() => setPerks([])) }, [])
+  useEffect(() => { getResources().then(setResCatalog).catch(() => setResCatalog([])) }, [])
   const stars = ach.size
   const set = <K extends keyof Profile>(k: K, v: Profile[K]) => setForm((f) => ({ ...f, [k]: v }))
   const setSocial = (k: keyof NonNullable<Profile['social']>, v: string) =>
@@ -194,7 +216,7 @@ function MemberCard({ user, catalog, onBack, onUpdate, onDelete }: {
   }
   async function saveAccess(clear = false) {
     const accessUntil = clear || !access ? null : Date.parse(`${access}T23:59:59`)
-    try { const p = await updateProfile(user.userId, { accessUntil }); setAccess(dateToInput(p.accessUntil)); onUpdate(p); flash(clear ? 'Доступ бессрочный ✓' : 'Срок доступа обновлён ✓') }
+    try { const p = await updateProfile(user.userId, { accessUntil, billingPeriod: period || null }); setAccess(dateToInput(p.accessUntil)); onUpdate(p); flash(clear ? 'Доступ бессрочный ✓' : 'Срок доступа обновлён ✓') }
     catch { flash('Ошибка') }
   }
   async function saveAch() {
@@ -213,7 +235,18 @@ function MemberCard({ user, catalog, onBack, onUpdate, onDelete }: {
     try { await deleteProfile(user.userId); onDelete(user.userId) } catch { flash('Ошибка удаления') }
   }
   function toggle(id: string) { setAch((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n }) }
-  function addGrant() { const v = grantInput.trim(); if (v && !grants.includes(v)) saveGrants([...grants, v]); setGrantInput('') }
+  // Выдать выбранный из каталога ресурс участнику.
+  function grantResource() { const v = grantPick.trim(); if (v && !grants.includes(v)) saveGrants([...grants, v]); setGrantPick('') }
+  // Управление каталогом ресурсов (общий список, из которого выбираем).
+  async function addToCatalog() {
+    const v = newRes.trim(); if (!v || resCatalog.includes(v)) { setNewRes(''); return }
+    const next = [...resCatalog, v]; setResCatalog(next); setNewRes('')
+    try { setResCatalog(await saveResources(next)) } catch { flash('Ошибка списка ресурсов') }
+  }
+  async function removeFromCatalog(name: string) {
+    const next = resCatalog.filter((x) => x !== name); setResCatalog(next)
+    try { await saveResources(next) } catch { flash('Ошибка списка ресурсов') }
+  }
 
   return (
     <div className="page">
@@ -271,10 +304,14 @@ function MemberCard({ user, catalog, onBack, onUpdate, onDelete }: {
         </div>
 
         <div className="card">
-          <div className="card-t">Срок доступа</div>
-          <div className="hint">По истечении вход в приложение закрывается. Пусто = бессрочно.</div>
+          <div className="card-t">Срок доступа / платёж</div>
+          <div className="hint">Дата = следующий платёж; по истечении вход закрывается. Пусто = бессрочно.</div>
           <div className="row">
             <input className="input" type="date" value={access} onChange={(e) => setAccess(e.target.value)} />
+            <select className="input" value={period} onChange={(e) => setPeriod(e.target.value as Profile['billingPeriod'] | '')}>
+              <option value="">Период —</option>
+              {PERIODS.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
+            </select>
             <button className="btn btn-gold" onClick={() => saveAccess(false)}>Сохранить</button>
           </div>
           <div className="row">
@@ -322,8 +359,8 @@ function MemberCard({ user, catalog, onBack, onUpdate, onDelete }: {
           })}
         </div>
 
-        {/* Ручные индивидуальные доступы */}
-        <div className="hint" style={{ marginTop: 14 }}>Ручные доступы поверх уровней (напр. «Канал DEX», «Мастермайнд»).</div>
+        {/* Ручные доступы — выбор из списка ресурсов */}
+        <div className="hint" style={{ marginTop: 14 }}>Ручные доступы поверх уровней — выбери из списка.</div>
         <div className="tags">
           {grants.map((g) => (
             <span className="tag" key={g}>{g}<button className="tag-x" onClick={() => saveGrants(grants.filter((x) => x !== g))}>×</button></span>
@@ -331,10 +368,27 @@ function MemberCard({ user, catalog, onBack, onUpdate, onDelete }: {
           {grants.length === 0 && <span className="hint">Пока нет ручных доступов.</span>}
         </div>
         <div className="row">
-          <input className="input" placeholder="Название ресурса" value={grantInput}
-            onChange={(e) => setGrantInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addGrant()} />
-          <button className="btn btn-ghost" onClick={addGrant}>Добавить</button>
+          <select className="input" value={grantPick} onChange={(e) => setGrantPick(e.target.value)}>
+            <option value="">Выбери ресурс…</option>
+            {resCatalog.filter((r) => !grants.includes(r)).map((r) => <option key={r} value={r}>{r}</option>)}
+          </select>
+          <button className="btn btn-ghost" disabled={!grantPick} onClick={grantResource}>Выдать</button>
         </div>
+
+        {/* Управление списком ресурсов (общий каталог) */}
+        <details className="res-manage">
+          <summary>Управлять списком ресурсов</summary>
+          <div className="tags" style={{ marginTop: 8 }}>
+            {resCatalog.map((r) => (
+              <span className="tag" key={r}>{r}<button className="tag-x" onClick={() => removeFromCatalog(r)}>×</button></span>
+            ))}
+          </div>
+          <div className="row">
+            <input className="input" placeholder="Новый ресурс в список" value={newRes}
+              onChange={(e) => setNewRes(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addToCatalog()} />
+            <button className="btn btn-ghost" onClick={addToCatalog}>+ В список</button>
+          </div>
+        </details>
       </div>
 
       {/* Управление */}

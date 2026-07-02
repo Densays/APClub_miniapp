@@ -201,6 +201,9 @@ const onlyMembers = (list: Profile[]) => list.filter((p) => !isReserved(p.userId
 const SHOWCASE_KEY = '__showcase'
 const CATALOG_KEY = '__catalog'
 const STATS_KEY = '__stats'
+const RESOURCES_KEY = '__resources'
+// Каталог выдаваемых ресурсов (для «Доступ к ресурсам» — выбор из списка).
+const DEFAULT_RESOURCES = ['Кабинет APClub', 'Канал SpreadHunter', 'Блок DEX', 'Групповой мастермайнд', 'Команда тестировщиков', 'Записи эфиров', 'Материалы клуба']
 
 // День в формате YYYY-MM-DD (UTC) — ключ для посуточной статистики запусков.
 function dayKey(ms: number): string {
@@ -417,6 +420,31 @@ app.put('/api/admin/showcase', ah(async (req, res) => {
   const perks = sanitizePerks((req.body as Record<string, unknown>)?.perks)
   await store.upsert(SHOWCASE_KEY, { perks } as unknown as Partial<Profile>)
   res.json({ ok: true, perks })
+}))
+
+// ── Каталог ресурсов (для «Доступ к ресурсам» — выбор из выпадающего списка) ───
+async function loadResources(): Promise<string[]> {
+  const row = (await store.get(RESOURCES_KEY)) as unknown as { list?: string[] } | null
+  return Array.isArray(row?.list) ? (row!.list as string[]) : DEFAULT_RESOURCES
+}
+function sanitizeResources(input: unknown): string[] {
+  if (!Array.isArray(input)) return []
+  const seen = new Set<string>()
+  return input
+    .filter((x): x is string => typeof x === 'string')
+    .map((x) => x.trim().slice(0, 120))
+    .filter((x) => x && !seen.has(x) && (seen.add(x), true))
+    .slice(0, 100)
+}
+app.get('/api/admin/resources', ah(async (req, res) => {
+  if (!requireAdmin(req, res)) return
+  res.json({ ok: true, resources: await loadResources() })
+}))
+app.put('/api/admin/resources', ah(async (req, res) => {
+  if (!requireAdmin(req, res)) return
+  const resources = sanitizeResources((req.body as Record<string, unknown>)?.resources)
+  await store.upsert(RESOURCES_KEY, { list: resources } as unknown as Partial<Profile>)
+  res.json({ ok: true, resources })
 }))
 
 // ── Уведомления о событиях в бота (DM резидентам) ─────────────────────────────
