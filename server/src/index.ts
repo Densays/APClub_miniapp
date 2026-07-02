@@ -312,9 +312,9 @@ app.get('/api/profiles', ah(async (req, res) => {
 app.get('/api/profile/:id', ah(async (req, res) => {
   const user = resolveUser(req)
   if (!user) return res.status(401).json({ ok: false, error: 'Unauthorized' })
-  const p = await store.get(req.params.id)
+  const p = await store.get(String(req.params.id))
   if (!p) return res.status(404).json({ ok: false, error: 'Not found' })
-  if (p.showProfile === false && !isAdmin(user) && String(user.id) !== req.params.id) {
+  if (p.showProfile === false && !isAdmin(user) && String(user.id) !== String(req.params.id)) {
     return res.status(403).json({ ok: false, error: 'Profile hidden' })
   }
   res.json({ ok: true, profile: p })
@@ -363,7 +363,7 @@ app.post('/api/admin/profile', ah(async (req, res) => {
 // Удаление профиля (напр., чистка демо-резидентов).
 app.delete('/api/admin/profile/:id', ah(async (req, res) => {
   if (!requireAdmin(req, res)) return
-  await store.remove(req.params.id)
+  await store.remove(String(req.params.id))
   res.json({ ok: true })
 }))
 
@@ -376,13 +376,13 @@ app.put('/api/admin/profile/:id', ah(async (req, res) => {
   // Переводим в bonusMonths относительно авто-отсчёта, чтобы прогресс дальше шёл сам.
   const body = req.body as Record<string, unknown>
   if (typeof body?.setMonth === 'number') {
-    const existing = await store.get(req.params.id)
+    const existing = await store.get(String(req.params.id))
     const activatedAt = patch.activatedAt ?? existing?.activatedAt ?? Date.now()
     const elapsed = monthsBetween(activatedAt, Date.now())
     const target = Math.max(0, Math.min(TOTAL_LEVELS, Math.floor(body.setMonth as number)))
     patch.bonusMonths = Math.max(-12, Math.min(12, target - elapsed))
   }
-  const saved = await store.upsert(req.params.id, patch)
+  const saved = await store.upsert(String(req.params.id), patch)
   res.json({ ok: true, profile: saved, unlock: computeUnlock(saved), access: computeAccess(saved) })
 }))
 
