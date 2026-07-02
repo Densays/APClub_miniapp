@@ -71,7 +71,7 @@ export default function AchievementsAdmin({ onSaved }: { onSaved?: (items: Achie
               </div>
             ))}
           </div>
-          <button className="btn btn-ghost" style={{ marginTop: 10 }} onClick={() => add(g.key)}>+ Достижение</button>
+          <button className="btn btn-ghost" style={{ marginTop: 10 }} onClick={() => add(g.key)}>Добавить достижения</button>
         </div>
       ))}
     </div>

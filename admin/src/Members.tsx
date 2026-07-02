@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  getProfiles, updateProfile, createMember, deleteProfile, fileToAvatar,
-  type Profile, type Catalog,
+  getProfiles, updateProfile, createMember, deleteProfile, fileToAvatar, getShowcase,
+  type Profile, type Catalog, type Perk,
 } from './api'
 
 const nameOf = (p: Profile) => `${p.firstName ?? ''} ${p.lastName ?? ''}`.trim() || 'Без имени'
@@ -168,11 +168,15 @@ function MemberCard({ user, catalog, onBack, onUpdate, onDelete }: {
   const [access, setAccess] = useState<string>(dateToInput(user.accessUntil))
   const [grants, setGrants] = useState<string[]>(user.grants ?? [])
   const [grantInput, setGrantInput] = useState('')
+  const [perks, setPerks] = useState<Perk[]>([])
   const [msg, setMsg] = useState('')
   const [confirmDel, setConfirmDel] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const cat = catalog?.achievements ?? []
+  // Перки витрины клуба — доступ по звёздам. Звёзды участника = число достижений.
+  useEffect(() => { getShowcase().then(setPerks).catch(() => setPerks([])) }, [])
+  const stars = ach.size
   const set = <K extends keyof Profile>(k: K, v: Profile[K]) => setForm((f) => ({ ...f, [k]: v }))
   const setSocial = (k: keyof NonNullable<Profile['social']>, v: string) =>
     setForm((f) => ({ ...f, social: { ...f.social, [k]: v } }))
@@ -300,13 +304,31 @@ function MemberCard({ user, catalog, onBack, onUpdate, onDelete }: {
 
       {/* Доступ к ресурсам */}
       <div className="card">
-        <div className="card-t">Доступ к ресурсам</div>
-        <div className="hint">Ручные индивидуальные доступы поверх уровней (напр. «Канал DEX», «Мастермайнд»).</div>
+        <div className="card-t">Доступ к ресурсам <span className="gold">★ {stars}</span></div>
+
+        {/* По звёздам — из витрины клуба */}
+        <div className="hint">Открывается автоматически по звёздам (достижениям). Витрина редактируется в разделе «Витрина клуба».</div>
+        <div className="grants-perks">
+          {perks.length === 0 && <span className="hint">Витрина пуста — добавь перки в разделе «Витрина клуба».</span>}
+          {[...perks].sort((a, b) => a.stars - b.stars).map((p, i) => {
+            const open = stars >= p.stars
+            return (
+              <div className={`perk-access${open ? ' open' : ''}`} key={i}>
+                <span className="perk-access-i">{p.icon}</span>
+                <span className="perk-access-t">{p.title}</span>
+                <span className={`perk-access-s${open ? ' ok' : ''}`}>{open ? 'открыт ✓' : `нужно ${p.stars}★`}</span>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Ручные индивидуальные доступы */}
+        <div className="hint" style={{ marginTop: 14 }}>Ручные доступы поверх уровней (напр. «Канал DEX», «Мастермайнд»).</div>
         <div className="tags">
           {grants.map((g) => (
             <span className="tag" key={g}>{g}<button className="tag-x" onClick={() => saveGrants(grants.filter((x) => x !== g))}>×</button></span>
           ))}
-          {grants.length === 0 && <span className="hint">Пока нет выданных доступов.</span>}
+          {grants.length === 0 && <span className="hint">Пока нет ручных доступов.</span>}
         </div>
         <div className="row">
           <input className="input" placeholder="Название ресурса" value={grantInput}
