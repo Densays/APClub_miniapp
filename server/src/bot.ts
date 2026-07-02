@@ -5,13 +5,12 @@
 // Кнопки web_app требуют HTTPS-URL. Пока MINIAPP_URL не задан (до деплоя) —
 // шлём только текст, а кнопки появятся автоматически, когда впишем URL в env.
 
-import { readFile } from 'node:fs/promises'
-import { fileURLToPath } from 'node:url'
-import { dirname, join } from 'node:path'
+import { WELCOME_JPEG_BASE64 } from './welcomeAsset.ts'
 
 const BOT_TOKEN = process.env.BOT_TOKEN ?? ''
-// Баннер приветствия (лежит в server/assets, рядом с бандлом).
-const WELCOME_IMG = join(dirname(fileURLToPath(import.meta.url)), '..', 'assets', 'welcome.jpg')
+const IS_VERCEL = Boolean(process.env.VERCEL) // на Vercel — webhook вместо polling
+// Баннер приветствия — из зашитого base64 (не читаем с ФС, работает на serverless).
+const WELCOME_BUF = Buffer.from(WELCOME_JPEG_BASE64, 'base64')
 // Публичный HTTPS-адрес мини-приложения (Vercel и т.п.). Задаётся при деплое.
 const MINIAPP_URL = (process.env.MINIAPP_URL ?? '').trim()
 
@@ -76,8 +75,8 @@ async function sendBanner(
       }
     }
     // 2) Первая отправка — заливаем байты, запоминаем file_id.
-    const buf = await readFile(WELCOME_IMG).catch(() => null)
-    if (buf) {
+    const buf = WELCOME_BUF
+    if (buf.length) {
       const form = new FormData()
       form.append('chat_id', String(chatId))
       form.append('caption', caption)
@@ -118,11 +117,27 @@ async function sendWelcome(chatId: number): Promise<void> {
 
 type Update = { update_id: number; message?: { chat?: { id: number }; text?: string } }
 
-async function handleUpdate(u: Update): Promise<void> {
+// Обработка одного апдейта (общая для polling и webhook).
+export async function handleUpdate(u: Update): Promise<void> {
   const chatId = u.message?.chat?.id
   if (!chatId) return
   // На /start и на любое сообщение показываем приветствие с входом.
   await sendWelcome(chatId)
+}
+
+// Установить/снять webhook (для serverless-режима). url — полный адрес эндпоинта.
+export async function setWebhook(url: string): Promise<{ ok: boolean; error?: string }> {
+  if (!BOT_TOKEN) return { ok: false, error: 'no_token' }
+  try {
+    const r = await fetch(TG('setWebhook'), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, allowed_updates: ['message'], drop_pending_updates: true }),
+    })
+    const d = (await r.json().catch(() => ({}))) as { ok?: boolean; description?: string }
+    return { ok: Boolean(d.ok), error: d.ok ? undefined : d.description }
+  } catch (e) {
+    return { ok: false, error: (e as Error).message }
+  }
 }
 
 let running = false
@@ -243,8 +258,13 @@ export function startBot(): void {
     return
   }
   if (running) return
-  running = true
   const mode = welcomeKeyboard() ? `фото + кнопка входа (${MINIAPP_URL})` : 'фото без кнопки входа (MINIAPP_URL не задан)'
+  // На Vercel (serverless) polling невозможен — там работает webhook.
+  if (IS_VERCEL) {
+    console.log(`🤖 Бот: webhook-режим (Vercel). Приветствие — ${mode}`)
+    return
+  }
+  running = true
   console.log(`🤖 Бот запущен (long-polling), приветствие — ${mode}`)
   pollLoop()
 }

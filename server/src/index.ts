@@ -19,7 +19,7 @@ import {
   EVENT_DEFS,
   type EventId,
 } from './notifications.ts'
-import { startBot, channelStatus, publishChannelEntry } from './bot.ts'
+import { startBot, channelStatus, publishChannelEntry, handleUpdate, setWebhook } from './bot.ts'
 
 const app = express()
 const PORT = Number(process.env.PORT) || 3000
@@ -480,6 +480,31 @@ app.post('/api/admin/channel/publish', ah(async (req, res) => {
   res.json(result)
 }))
 
+// ── Бот: webhook (serverless) + установка вебхука ─────────────────────────────
+// Telegram шлёт сюда апдейты в webhook-режиме (Vercel). Отвечаем 200 быстро.
+app.post('/api/telegram/webhook', ah(async (req, res) => {
+  try { await handleUpdate(req.body ?? {}) } catch (e) { console.error('[bot] webhook:', (e as Error)?.message) }
+  res.json({ ok: true })
+}))
+
+// Установить webhook на указанный URL (админ). Вызывается один раз после деплоя.
+app.post('/api/admin/bot/webhook', ah(async (req, res) => {
+  if (!requireAdmin(req, res)) return
+  const url = String((req.body as { url?: string })?.url ?? '').trim()
+  if (!/^https:\/\/.+/.test(url)) return res.status(400).json({ ok: false, error: 'bad_url' })
+  res.json(await setWebhook(url))
+}))
+
+// ── Cron: рассылка уведомлений по расписанию ──────────────────────────────────
+// Дёргается по расписанию (Vercel Cron или внешний пингер ежечасно). Защита секретом.
+const CRON_SECRET = process.env.CRON_SECRET ?? ''
+app.all('/api/cron/notify', ah(async (req, res) => {
+  const provided = String(req.query.secret ?? '') || (req.headers.authorization ?? '').replace(/^Bearer\s+/i, '')
+  if (CRON_SECRET && !safeEqual(provided, CRON_SECRET)) return res.status(401).json({ ok: false, error: 'unauthorized' })
+  await runDueNotifications()
+  res.json({ ok: true, ranAt: new Date().toISOString() })
+}))
+
 // Тестовое сообщение на указанный chat_id (проверка бота).
 app.post('/api/admin/notifications/test', ah(async (req, res) => {
   if (!requireAdmin(req, res)) return
@@ -624,16 +649,20 @@ app.post('/api/buddy', ah(async (req, res) => {
   res.json({ ok: true, month, alreadyChosen: false, buddy: pick })
 }))
 
-app.listen(PORT, () => {
-  console.log(`🚀 API server on http://localhost:${PORT}`)
-})
+// ── Запуск ────────────────────────────────────────────────────────────────────
+// На Vercel (serverless) НЕ слушаем порт, НЕ крутим setInterval и НЕ поллим —
+// там работают webhook (/api/telegram/webhook) и cron (/api/cron/notify).
+// Локально — обычный сервер: listen + планировщик + long-polling бота.
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`🚀 API server on http://localhost:${PORT}`)
+  })
+  const NOTIFY_INTERVAL_MS = 5 * 60 * 1000
+  setInterval(() => {
+    runDueNotifications().catch((e) => console.error('[notify] scheduler error:', e?.message ?? e))
+  }, NOTIFY_INTERVAL_MS)
+  startBot()
+}
 
-// Авто-планировщик уведомлений: раз в 5 минут проверяет сегодняшние события,
-// у которых наступил час отправки, и рассылает (дедуп внутри). Без BOT_TOKEN — no-op.
-const NOTIFY_INTERVAL_MS = 5 * 60 * 1000
-setInterval(() => {
-  runDueNotifications().catch((e) => console.error('[notify] scheduler error:', e?.message ?? e))
-}, NOTIFY_INTERVAL_MS)
-
-// Телеграм-бот: приветствие по /start с кнопкой входа в мини-приложение.
-startBot()
+// Экспорт Express-приложения как serverless-хендлера (Vercel: server/api/index.ts).
+export default app
