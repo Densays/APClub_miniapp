@@ -1,0 +1,639 @@
+import 'dotenv/config'
+import express from 'express'
+import cors from 'cors'
+import { validateInitData } from './initData.ts'
+import type { TelegramUser } from './initData.ts'
+import { store, sanitizePatch, sanitizeAdminPatch } from './store.ts'
+import type { Profile } from './store.ts'
+import { ACHIEVEMENTS, LEVELS, DEFAULT_PERKS } from './content.ts'
+import type { Perk } from './content.ts'
+import {
+  loadConfig as loadNotifConfig,
+  updateConfig as updateNotifConfig,
+  upcoming as upcomingEvents,
+  recipients as notifRecipients,
+  sendEvent as sendNotifEvent,
+  sendCustom as sendNotifCustom,
+  sendTest as sendNotifTest,
+  runDueNotifications,
+  EVENT_DEFS,
+  type EventId,
+} from './notifications.ts'
+import { startBot, channelStatus, publishChannelEntry } from './bot.ts'
+
+const app = express()
+const PORT = Number(process.env.PORT) || 3000
+const BOT_TOKEN = process.env.BOT_TOKEN ?? ''
+// Dev-режим: при ALLOW_DEV_AUTH=1 разрешаем вход без Telegram (тестовый юзер).
+// В проде флаг должен быть выключен.
+const ALLOW_DEV_AUTH = process.env.ALLOW_DEV_AUTH === '1'
+// Список Telegram-id администраторов (через запятую) — для админки внутри Telegram.
+const ADMIN_IDS = (process.env.ADMIN_IDS ?? '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean)
+
+// Пароль отдельной браузерной админ-панели (deploy в apk-lab).
+// Standalone-админка не имеет Telegram initData, поэтому авторизуется паролем:
+// логинится → получает токен (= сам пароль) → шлёт его в заголовке x-admin-token.
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? ''
+if (!ADMIN_PASSWORD) {
+  console.warn('⚠️  ADMIN_PASSWORD не задан — вход в браузерную админку по паролю недоступен.')
+}
+
+// Тестовый пользователь для локальной разработки вне Telegram
+// Тестовый пользователь для локальной разработки вне Telegram.
+// Имя/ник совпадают с моком фронта, чтобы локально не мелькал «Dev Tester».
+const DEV_USER: TelegramUser = {
+  id: 99999999,
+  first_name: 'Denis',
+  last_name: 'Sh',
+  username: 'denflow',
+  language_code: 'ru',
+}
+
+if (!BOT_TOKEN) {
+  console.warn('⚠️  BOT_TOKEN не задан — проверка initData будет падать (это нормально вне Telegram).')
+}
+if (ALLOW_DEV_AUTH) {
+  console.warn('🛠  ALLOW_DEV_AUTH=1 — включён dev-вход без Telegram. Не используйте в проде!')
+}
+
+app.use(cors())
+// Лимит поднят: профили и уведомления могут нести base64-картинки (аватар/баннер).
+app.use(express.json({ limit: '12mb' }))
+
+// Health-check
+app.get('/api/health', (_req, res) => {
+  res.json({ ok: true, ts: Date.now() })
+})
+
+// Каталог контента (ачивки + названия уровней) — общий для приложения и админки.
+// Редактируется в разделе «Геймификация»; хранится в служебной записи __catalog.
+async function loadCatalog(): Promise<{ achievements: typeof ACHIEVEMENTS; levels: string[] }> {
+  const row = (await store.get(CATALOG_KEY)) as unknown as { achievements?: typeof ACHIEVEMENTS; levels?: string[] } | null
+  return {
+    achievements: Array.isArray(row?.achievements) && row!.achievements.length ? row!.achievements! : ACHIEVEMENTS,
+    levels: Array.isArray(row?.levels) && row!.levels!.length ? row!.levels! : LEVELS,
+  }
+}
+
+function sanitizeAchievements(input: unknown): typeof ACHIEVEMENTS {
+  if (!Array.isArray(input)) return []
+  return input
+    .filter((a): a is Record<string, unknown> => !!a && typeof a === 'object')
+    .map((a, i) => ({
+      id: String(a.id ?? `ach_${i}`).slice(0, 60).replace(/[^\w-]/g, '') || `ach_${i}`,
+      title: String(a.title ?? '').slice(0, 200),
+      icon: String(a.icon ?? '🏅').slice(0, 8),
+      group: (a.group === 'role' ? 'role' : 'money') as 'money' | 'role',
+    }))
+    .filter((a) => a.title.length > 0)
+    .slice(0, 200)
+}
+
+app.get('/api/catalog', ah(async (_req, res) => {
+  const c = await loadCatalog()
+  res.json({ ok: true, achievements: c.achievements, levels: c.levels })
+}))
+
+// Сохранение каталога достижений (админ, раздел «Геймификация»).
+app.put('/api/admin/catalog', ah(async (req, res) => {
+  if (!requireAdmin(req, res)) return
+  const body = (req.body ?? {}) as Record<string, unknown>
+  const achievements = sanitizeAchievements(body.achievements)
+  // id должны быть уникальны (иначе ломается выдача) — отбрасываем дубли.
+  const seen = new Set<string>()
+  const unique = achievements.filter((a) => (seen.has(a.id) ? false : (seen.add(a.id), true)))
+  const current = await loadCatalog()
+  const levels = Array.isArray(body.levels)
+    ? body.levels.filter((x): x is string => typeof x === 'string').map((x) => x.slice(0, 60)).slice(0, 24)
+    : current.levels
+  await store.upsert(CATALOG_KEY, { achievements: unique, levels } as unknown as Partial<Profile>)
+  res.json({ ok: true, achievements: unique, levels })
+}))
+
+// Достаёт initData из заголовка "Authorization: tma <initData>"
+function getInitData(req: express.Request): string {
+  const auth = req.header('authorization') ?? ''
+  const [scheme, value] = auth.split(' ')
+  return scheme === 'tma' && value ? value : ''
+}
+
+// Возвращает авторизованного пользователя или null (с учётом dev-режима).
+function resolveUser(req: express.Request): TelegramUser | null {
+  const initData = getInitData(req)
+  if (ALLOW_DEV_AUTH && (initData === 'dev' || initData === '')) {
+    return DEV_USER
+  }
+  return validateInitData(initData, BOT_TOKEN)
+}
+
+function isAdmin(user: TelegramUser): boolean {
+  return ADMIN_IDS.includes(String(user.id))
+}
+
+// Токен браузерной админки из заголовка "x-admin-token".
+function getAdminToken(req: express.Request): string {
+  return req.header('x-admin-token') ?? ''
+}
+
+// Сравнение токенов постоянного времени (защита от тайминг-атак по паролю).
+function safeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  let diff = 0
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  return diff === 0
+}
+
+// Запрос имеет админ-права, если: (а) валидный токен браузерной админки,
+// либо (б) авторизованный Telegram-пользователь входит в ADMIN_IDS.
+function isAdminRequest(req: express.Request): boolean {
+  const token = getAdminToken(req)
+  if (ADMIN_PASSWORD && token && safeEqual(token, ADMIN_PASSWORD)) return true
+  const user = resolveUser(req)
+  return user ? isAdmin(user) : false
+}
+
+// Гард для админ-роутов: 401, если запрос не админский.
+function requireAdmin(req: express.Request, res: express.Response): boolean {
+  if (isAdminRequest(req)) return true
+  res.status(401).json({ ok: false, error: 'Admin auth required' })
+  return false
+}
+
+// ── Прогресс разблокировки по месяцам ────────────────────────────────────────
+const TOTAL_LEVELS = 12
+
+// Сколько полных календарных месяцев прошло между двумя датами.
+function monthsBetween(fromMs: number, toMs: number): number {
+  const from = new Date(fromMs)
+  const to = new Date(toMs)
+  let m = (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth())
+  if (to.getDate() < from.getDate()) m--
+  return Math.max(0, m)
+}
+
+// Прогресс идёт АВТОМАТИЧЕСКИ с момента активации (elapsed месяцев) + ручная
+// корректировка админа (bonusMonths, ±). Итог ограничен 0..12.
+function computeUnlock(profile: Profile) {
+  const activatedAt = profile.activatedAt ?? Date.now()
+  const bonus = profile.bonusMonths ?? 0
+  const elapsed = monthsBetween(activatedAt, Date.now())
+  const current = Math.max(0, Math.min(elapsed + bonus, TOTAL_LEVELS))
+  return { current, total: TOTAL_LEVELS, activatedAt, bonusMonths: bonus, elapsedMonths: elapsed }
+}
+
+// Доступ к приложению: если задан accessUntil и он в прошлом — доступ закрыт
+// (по решению пользователя закрывается ВЕСЬ вход в приложение).
+function computeAccess(profile: Profile) {
+  const until = profile.accessUntil ?? null
+  const active = until === null || until > Date.now()
+  return { until, active }
+}
+
+// Служебные записи (настройки, витрина) хранятся в той же таблице под ключами
+// с префиксом «__» — их нельзя показывать в списках участников.
+const RESERVED_PREFIX = '__'
+const isReserved = (id: string) => id.startsWith(RESERVED_PREFIX)
+const onlyMembers = (list: Profile[]) => list.filter((p) => !isReserved(p.userId))
+
+const SHOWCASE_KEY = '__showcase'
+const CATALOG_KEY = '__catalog'
+const STATS_KEY = '__stats'
+
+// День в формате YYYY-MM-DD (UTC) — ключ для посуточной статистики запусков.
+function dayKey(ms: number): string {
+  return new Date(ms).toISOString().slice(0, 10)
+}
+const DAY_MS = 24 * 60 * 60 * 1000
+
+// Ключ месяца YYYY-MM со сдвигом на delta месяцев (для трендов retention/churn).
+function ymKey(ms: number, delta = 0): string {
+  const d = new Date(ms)
+  const total = d.getUTCFullYear() * 12 + d.getUTCMonth() + delta
+  const y = Math.floor(total / 12)
+  const m = total % 12
+  return `${y}-${String(m + 1).padStart(2, '0')}`
+}
+
+// Профиль по умолчанию — данные из Telegram, если пользователь ещё не заполнял.
+function withDefaults(user: TelegramUser, stored: Profile | null): Profile {
+  const base: Profile = {
+    userId: String(user.id),
+    firstName: user.first_name ?? '',
+    lastName: user.last_name ?? '',
+    username: user.username ?? '',
+    avatar: user.photo_url ?? '',
+    allowMessages: true,
+    showProfile: true,
+  }
+  return stored ? { ...base, ...stored } : base
+}
+
+// Возвращает данные текущего пользователя после проверки подписи
+app.get('/api/me', (req, res) => {
+  const user = resolveUser(req)
+  if (!user) return res.status(401).json({ ok: false, error: 'Invalid or missing initData' })
+  res.json({ ok: true, dev: ALLOW_DEV_AUTH && user.id === DEV_USER.id, user })
+})
+
+// Обёртка для async-роутов: ловит ошибки (в т.ч. от БД) и отдаёт чистый 500,
+// вместо «зависания» запроса при необработанном промис-реджекте.
+type AsyncHandler = (req: express.Request, res: express.Response) => Promise<unknown>
+function ah(fn: AsyncHandler) {
+  return (req: express.Request, res: express.Response) => {
+    fn(req, res).catch((err) => {
+      console.error('API error:', err?.message ?? err)
+      if (!res.headersSent) res.status(500).json({ ok: false, error: 'Server error' })
+    })
+  }
+}
+
+// ── Профиль текущего пользователя ────────────────────────────────────────────
+
+app.get('/api/profile/me', ah(async (req, res) => {
+  const user = resolveUser(req)
+  if (!user) return res.status(401).json({ ok: false, error: 'Unauthorized' })
+  let stored = await store.get(String(user.id))
+  // Активация: фиксируем момент первого входа в приложение.
+  if (!stored?.activatedAt) {
+    stored = await store.upsert(String(user.id), { activatedAt: Date.now() })
+  }
+  const profile = withDefaults(user, stored)
+  res.json({
+    ok: true,
+    profile,
+    registered: Boolean(profile.registeredAt),
+    unlock: computeUnlock(profile),
+    access: computeAccess(profile),
+    isAdmin: isAdmin(user),
+  })
+}))
+
+app.put('/api/profile/me', ah(async (req, res) => {
+  const user = resolveUser(req)
+  if (!user) return res.status(401).json({ ok: false, error: 'Unauthorized' })
+  const patch = sanitizePatch(req.body)
+  const saved = await store.upsert(String(user.id), patch)
+  res.json({ ok: true, profile: withDefaults(user, saved) })
+}))
+
+// Регистрация (гейт входа): первый онбординг в мини-аппе. Обязательны имя, фамилия,
+// корректная почта; аватар опционален (по умолчанию из Telegram). Ставим registeredAt.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+app.post('/api/profile/register', ah(async (req, res) => {
+  const user = resolveUser(req)
+  if (!user) return res.status(401).json({ ok: false, error: 'Unauthorized' })
+  const b = (req.body ?? {}) as { firstName?: string; lastName?: string; email?: string; avatar?: string }
+  const firstName = String(b.firstName ?? '').trim().slice(0, 100)
+  const lastName = String(b.lastName ?? '').trim().slice(0, 100)
+  const email = String(b.email ?? '').trim().slice(0, 200)
+  if (!firstName || !lastName) return res.status(400).json({ ok: false, error: 'name_required' })
+  if (!EMAIL_RE.test(email)) return res.status(400).json({ ok: false, error: 'bad_email' })
+  const patch: Partial<Profile> = { firstName, lastName, email, registeredAt: Date.now() }
+  if (typeof b.avatar === 'string' && b.avatar) patch.avatar = b.avatar.slice(0, 3_000_000)
+  const saved = await store.upsert(String(user.id), patch)
+  const profile = withDefaults(user, saved)
+  res.json({ ok: true, profile, registered: true, unlock: computeUnlock(profile), access: computeAccess(profile) })
+}))
+
+// ── Просмотр профилей других участников (общая база) ──────────────────────────
+
+app.get('/api/profiles', ah(async (req, res) => {
+  const user = resolveUser(req)
+  if (!user) return res.status(401).json({ ok: false, error: 'Unauthorized' })
+  const all = onlyMembers(await store.list())
+  // Показываем только тех, кто разрешил отображение (админ видит всех).
+  const visible = isAdmin(user) ? all : all.filter((p) => p.showProfile !== false)
+  res.json({ ok: true, profiles: visible })
+}))
+
+app.get('/api/profile/:id', ah(async (req, res) => {
+  const user = resolveUser(req)
+  if (!user) return res.status(401).json({ ok: false, error: 'Unauthorized' })
+  const p = await store.get(req.params.id)
+  if (!p) return res.status(404).json({ ok: false, error: 'Not found' })
+  if (p.showProfile === false && !isAdmin(user) && String(user.id) !== req.params.id) {
+    return res.status(403).json({ ok: false, error: 'Profile hidden' })
+  }
+  res.json({ ok: true, profile: p })
+}))
+
+// ── Браузерная админка (deploy в apk-lab) ────────────────────────────────────
+
+// Вход по паролю. Возвращает токен (= пароль), который админка хранит локально
+// и шлёт в заголовке x-admin-token. Отдельная авторизация от Telegram.
+app.post('/api/admin/login', (req, res) => {
+  const password = String((req.body as Record<string, unknown>)?.password ?? '')
+  if (!ADMIN_PASSWORD) return res.status(503).json({ ok: false, error: 'Админка не настроена (нет ADMIN_PASSWORD)' })
+  if (!safeEqual(password, ADMIN_PASSWORD)) return res.status(401).json({ ok: false, error: 'Неверный пароль' })
+  res.json({ ok: true, token: ADMIN_PASSWORD })
+})
+
+// Проверка валидности сохранённого токена (для авто-логина админки).
+app.get('/api/admin/check', (req, res) => {
+  res.json({ ok: isAdminRequest(req) })
+})
+
+// Список ВСЕХ профилей (включая скрытые) — для админки.
+app.get('/api/admin/profiles', ah(async (req, res) => {
+  if (!requireAdmin(req, res)) return
+  const all = onlyMembers(await store.list())
+  const enriched = all.map((p) => ({ ...p, unlock: computeUnlock(p), access: computeAccess(p) }))
+  res.json({ ok: true, profiles: enriched })
+}))
+
+// Создание участника вручную. Если передан userId (напр., реальный Telegram-id) —
+// профиль сам «подхватится» при первом входе этого пользователя; иначе даём
+// синтетический id (m<timestamp>), Telegram-привязка появится позже.
+app.post('/api/admin/profile', ah(async (req, res) => {
+  if (!requireAdmin(req, res)) return
+  const body = (req.body ?? {}) as Record<string, unknown>
+  let id = typeof body.userId === 'string' ? body.userId.trim() : ''
+  if (!id) id = `m${Date.now()}`
+  if (isReserved(id)) return res.status(400).json({ ok: false, error: 'Недопустимый id' })
+  const exists = await store.get(id)
+  if (exists) return res.status(409).json({ ok: false, error: 'Участник с таким id уже есть' })
+  const patch = sanitizeAdminPatch(body)
+  const saved = await store.upsert(id, { ...patch, activatedAt: Date.now(), createdBy: 'admin' })
+  res.json({ ok: true, profile: { ...saved, unlock: computeUnlock(saved), access: computeAccess(saved) } })
+}))
+
+// Удаление профиля (напр., чистка демо-резидентов).
+app.delete('/api/admin/profile/:id', ah(async (req, res) => {
+  if (!requireAdmin(req, res)) return
+  await store.remove(req.params.id)
+  res.json({ ok: true })
+}))
+
+// Редактирование любого профиля (поля, прогресс, достижения).
+app.put('/api/admin/profile/:id', ah(async (req, res) => {
+  if (!requireAdmin(req, res)) return
+  // Админ может править обычные поля + управлять прогрессом.
+  const patch = sanitizeAdminPatch(req.body)
+  // Абсолютная установка этапа: {"setMonth": 6} — «установить 6 месяцев».
+  // Переводим в bonusMonths относительно авто-отсчёта, чтобы прогресс дальше шёл сам.
+  const body = req.body as Record<string, unknown>
+  if (typeof body?.setMonth === 'number') {
+    const existing = await store.get(req.params.id)
+    const activatedAt = patch.activatedAt ?? existing?.activatedAt ?? Date.now()
+    const elapsed = monthsBetween(activatedAt, Date.now())
+    const target = Math.max(0, Math.min(TOTAL_LEVELS, Math.floor(body.setMonth as number)))
+    patch.bonusMonths = Math.max(-12, Math.min(12, target - elapsed))
+  }
+  const saved = await store.upsert(req.params.id, patch)
+  res.json({ ok: true, profile: saved, unlock: computeUnlock(saved), access: computeAccess(saved) })
+}))
+
+// ── Витрина клуба: перки, открываемые за звёзды-достижения ────────────────────
+// Хранится в служебной записи __showcase (та же таблица, без DDL).
+async function loadPerks(): Promise<Perk[]> {
+  const row = (await store.get(SHOWCASE_KEY)) as unknown as { perks?: Perk[] } | null
+  return Array.isArray(row?.perks) ? (row!.perks as Perk[]) : DEFAULT_PERKS
+}
+
+function sanitizePerks(input: unknown): Perk[] {
+  if (!Array.isArray(input)) return []
+  return input
+    .filter((p): p is Record<string, unknown> => !!p && typeof p === 'object')
+    .map((p) => ({
+      stars: Math.max(0, Math.min(999, Math.floor(Number(p.stars) || 0))),
+      title: String(p.title ?? '').slice(0, 200),
+      icon: String(p.icon ?? '🎁').slice(0, 8),
+    }))
+    .filter((p) => p.title.length > 0)
+    .slice(0, 100)
+}
+
+// Публичный список перков (для Mini App и админки).
+app.get('/api/showcase', ah(async (_req, res) => {
+  res.json({ ok: true, perks: await loadPerks() })
+}))
+
+// Сохранение перков витрины (админ).
+app.put('/api/admin/showcase', ah(async (req, res) => {
+  if (!requireAdmin(req, res)) return
+  const perks = sanitizePerks((req.body as Record<string, unknown>)?.perks)
+  await store.upsert(SHOWCASE_KEY, { perks } as unknown as Partial<Profile>)
+  res.json({ ok: true, perks })
+}))
+
+// ── Уведомления о событиях в бота (DM резидентам) ─────────────────────────────
+const EVENT_IDS = new Set(EVENT_DEFS.map((d) => d.id))
+
+// Конфиг + ближайшие события + число получателей (для раздела «Уведомления»).
+app.get('/api/admin/notifications', ah(async (req, res) => {
+  if (!requireAdmin(req, res)) return
+  const [config, upcoming, recs] = await Promise.all([
+    loadNotifConfig(), upcomingEvents(7), notifRecipients(),
+  ])
+  res.json({
+    ok: true,
+    config,
+    upcoming,
+    recipients: recs.length,
+    botReady: Boolean(BOT_TOKEN),
+    events: EVENT_DEFS.map((d) => ({ id: d.id, title: d.title, time: d.time ?? null })),
+  })
+}))
+
+// Сохранить настройки (рубильник, шаблоны, час отправки).
+app.put('/api/admin/notifications', ah(async (req, res) => {
+  if (!requireAdmin(req, res)) return
+  const config = await updateNotifConfig(req.body)
+  res.json({ ok: true, config })
+}))
+
+// Ручная отправка анонса события (гибрид-режим).
+app.post('/api/admin/notifications/send', ah(async (req, res) => {
+  if (!requireAdmin(req, res)) return
+  const body = (req.body ?? {}) as { eventId?: string; dateKey?: string; force?: boolean }
+  if (!body.eventId || !EVENT_IDS.has(body.eventId as EventId)) {
+    return res.status(400).json({ ok: false, error: 'bad_event' })
+  }
+  if (!body.dateKey || !/^\d{4}-\d{2}-\d{2}$/.test(body.dateKey)) {
+    return res.status(400).json({ ok: false, error: 'bad_date' })
+  }
+  const report = await sendNotifEvent(body.eventId as EventId, body.dateKey, { force: Boolean(body.force) })
+  res.json({ ok: report.ok, report })
+}))
+
+// Произвольное уведомление — рассылка всем резидентам (текст + опц. картинка).
+app.post('/api/admin/notifications/send-custom', ah(async (req, res) => {
+  if (!requireAdmin(req, res)) return
+  const body = (req.body ?? {}) as { text?: string; image?: string }
+  const report = await sendNotifCustom(String(body.text ?? ''), body.image)
+  res.json({ ok: report.ok, report })
+}))
+
+// Статус бота в канале (админ, права постить/закреплять).
+app.get('/api/admin/channel', ah(async (req, res) => {
+  if (!requireAdmin(req, res)) return
+  res.json({ ok: true, status: await channelStatus() })
+}))
+
+// Опубликовать приветствие в канал и закрепить (админ).
+app.post('/api/admin/channel/publish', ah(async (req, res) => {
+  if (!requireAdmin(req, res)) return
+  const result = await publishChannelEntry()
+  res.json(result)
+}))
+
+// Тестовое сообщение на указанный chat_id (проверка бота).
+app.post('/api/admin/notifications/test', ah(async (req, res) => {
+  if (!requireAdmin(req, res)) return
+  const body = (req.body ?? {}) as { chatId?: string | number; text?: string; image?: string }
+  if (!body.chatId) return res.status(400).json({ ok: false, error: 'no_chat_id' })
+  const result = await sendNotifTest(String(body.chatId), body.text, body.image)
+  res.json(result)
+}))
+
+// ── Трекинг запусков приложения + статистика для дашборда ─────────────────────
+
+// Фиксируем запуск приложения: обновляем активность пользователя и суточный
+// счётчик запусков. Вызывается мини-приложением один раз при старте.
+app.post('/api/launch', ah(async (req, res) => {
+  const user = resolveUser(req)
+  if (!user) return res.status(401).json({ ok: false, error: 'Unauthorized' })
+  const id = String(user.id)
+  const now = Date.now()
+  const today = dayKey(now)
+  const prev = await store.get(id)
+  const patch: Partial<Profile> = {
+    lastSeenAt: now,
+    firstSeenAt: prev?.firstSeenAt ?? now,
+    launchCount: (prev?.launchCount ?? 0) + 1,
+  }
+  // activeDays растёт только на новый календарный день (для вовлечённости).
+  if (prev?.lastActiveDay !== today) {
+    patch.activeDays = (prev?.activeDays ?? 0) + 1
+    patch.lastActiveDay = today
+  }
+  await store.upsert(id, patch)
+  // Служебная запись __stats: суточные запуски + помесячные наборы активных.
+  const stats = (await store.get(STATS_KEY)) as unknown as
+    { daily?: Record<string, number>; monthly?: Record<string, string[]> } | null
+  const daily = { ...(stats?.daily ?? {}) }
+  daily[today] = (daily[today] ?? 0) + 1
+  const monthly = { ...(stats?.monthly ?? {}) }
+  const mk = ymKey(now)
+  const set = new Set(monthly[mk] ?? [])
+  set.add(id)
+  monthly[mk] = [...set]
+  await store.upsert(STATS_KEY, { daily, monthly } as unknown as Partial<Profile>)
+  res.json({ ok: true })
+}))
+
+// Агрегированная статистика для дашборда (админ).
+app.get('/api/admin/stats', ah(async (req, res) => {
+  if (!requireAdmin(req, res)) return
+  const now = Date.now()
+  const members = onlyMembers(await store.list())
+  const total = members.length
+  const activated = members.filter((m) => typeof m.lastSeenAt === 'number')
+  const active = activated.filter((m) => now - (m.lastSeenAt as number) <= 7 * DAY_MS)
+  const churned = activated.filter((m) => now - (m.lastSeenAt as number) > 30 * DAY_MS)
+  const engaged = members.filter((m) => (m.activeDays ?? 0) >= 3)
+  const base = activated.length
+  const retention = base ? Math.round((active.length / base) * 100) : 100
+  const churnRate = base ? Math.round((churned.length / base) * 100) : 0
+
+  // Ряд запусков за последние 14 дней.
+  const stats = (await store.get(STATS_KEY)) as unknown as
+    { daily?: Record<string, number>; monthly?: Record<string, string[]> } | null
+  const daily = stats?.daily ?? {}
+  const series: { date: string; launches: number }[] = []
+  for (let i = 13; i >= 0; i--) {
+    const key = dayKey(now - i * DAY_MS)
+    series.push({ date: key, launches: daily[key] ?? 0 })
+  }
+  const totalLaunches = Object.values(daily).reduce((s, n) => s + n, 0)
+  const todayLaunches = daily[dayKey(now)] ?? 0
+
+  // Тренды retention/churn по месяцам (6 месяцев). Считаем месяц-к-месяцу:
+  // retention(M) = доля активных прошлого месяца, вернувшихся в этом.
+  const monthly = stats?.monthly ?? {}
+  const retentionSeries: { period: string; value: number | null }[] = []
+  const churnSeries: { period: string; value: number | null }[] = []
+  for (let i = 5; i >= 0; i--) {
+    const cur = ymKey(now, -i)
+    const prevKey = ymKey(now, -i - 1)
+    const prevActive = monthly[prevKey] ?? []
+    const curSet = new Set(monthly[cur] ?? [])
+    let ret: number | null = null
+    if (prevActive.length) {
+      const returned = prevActive.filter((u) => curSet.has(u)).length
+      ret = Math.round((returned / prevActive.length) * 100)
+    }
+    retentionSeries.push({ period: cur, value: ret })
+    churnSeries.push({ period: cur, value: ret === null ? null : 100 - ret })
+  }
+
+  res.json({
+    ok: true,
+    total,
+    active: active.length,
+    inactive: total - active.length,
+    engaged: engaged.length,
+    retention,
+    churnRate,
+    launches: { series, total: totalLaunches, today: todayLaunches },
+    retentionSeries,
+    churnSeries,
+  })
+}))
+
+// ── Бадди (Random coffee): выбор напарника раз в месяц ────────────────────────
+function monthKey(d = new Date()): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+// Текущий бадди месяца (если уже выбран)
+app.get('/api/buddy', ah(async (req, res) => {
+  const user = resolveUser(req)
+  if (!user) return res.status(401).json({ ok: false, error: 'Unauthorized' })
+  const me = await store.get(String(user.id))
+  const month = monthKey()
+  if (me?.buddy && me.buddy.month === month) {
+    const buddy = await store.get(me.buddy.userId)
+    return res.json({ ok: true, month, chosen: true, buddy: buddy ?? null })
+  }
+  res.json({ ok: true, month, chosen: false, buddy: null })
+}))
+
+// Выбрать бадди на текущий месяц. Раз в месяц: если уже выбран — вернуть его.
+app.post('/api/buddy', ah(async (req, res) => {
+  const user = resolveUser(req)
+  if (!user) return res.status(401).json({ ok: false, error: 'Unauthorized' })
+  const meId = String(user.id)
+  const me = await store.get(meId)
+  const month = monthKey()
+  if (me?.buddy && me.buddy.month === month) {
+    const buddy = await store.get(me.buddy.userId)
+    return res.json({ ok: true, month, alreadyChosen: true, buddy: buddy ?? null })
+  }
+  // Кандидаты — все видимые резиденты, кроме самого себя
+  const all = onlyMembers(await store.list())
+  const candidates = all.filter((p) => p.userId !== meId && p.showProfile !== false)
+  if (candidates.length === 0) {
+    return res.json({ ok: true, month, alreadyChosen: false, buddy: null, empty: true })
+  }
+  const pick = candidates[Math.floor(Math.random() * candidates.length)]
+  await store.upsert(meId, { buddy: { month, userId: pick.userId } })
+  res.json({ ok: true, month, alreadyChosen: false, buddy: pick })
+}))
+
+app.listen(PORT, () => {
+  console.log(`🚀 API server on http://localhost:${PORT}`)
+})
+
+// Авто-планировщик уведомлений: раз в 5 минут проверяет сегодняшние события,
+// у которых наступил час отправки, и рассылает (дедуп внутри). Без BOT_TOKEN — no-op.
+const NOTIFY_INTERVAL_MS = 5 * 60 * 1000
+setInterval(() => {
+  runDueNotifications().catch((e) => console.error('[notify] scheduler error:', e?.message ?? e))
+}, NOTIFY_INTERVAL_MS)
+
+// Телеграм-бот: приветствие по /start с кнопкой входа в мини-приложение.
+startBot()

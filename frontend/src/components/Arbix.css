@@ -1,0 +1,54 @@
+.arbix {
+  display: flex;
+  align-items: stretch;
+  gap: 14px;
+  width: 100%;
+  padding: 16px;
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+  overflow: hidden;
+}
+.arbix:active { transform: scale(0.99); }
+
+.arbix-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.arbix-title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.4rem;
+}
+.arbix-sub {
+  font-size: 0.85rem;
+  line-height: 1.35;
+  color: var(--text-dim);
+}
+.arbix-cta {
+  margin-top: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--gold);
+}
+.arbix-cta-arrow { font-size: 1rem; }
+
+.arbix-shot {
+  flex: 0 0 46%;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.arbix-shot img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: left center;
+}

@@ -1,0 +1,42 @@
+:root {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color-scheme: light dark;
+  /* Цвета подтягиваются из темы Telegram через CSS-переменные WebApp */
+  --bg: var(--tg-theme-bg-color, #ffffff);
+  --text: var(--tg-theme-text-color, #000000);
+  --hint: var(--tg-theme-hint-color, #999999);
+  --accent: var(--tg-theme-button-color, #2481cc);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.container {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+
+h1 { font-size: 1.5rem; }
+
+.card {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  border-radius: 14px;
+  padding: 16px;
+  line-height: 1.6;
+}
+
+.app-gate-loading {
+  min-height: 100vh; display: grid; place-items: center;
+  color: var(--hint); font-size: 0.95rem;
+}
+
+.muted, .err, .ok { font-size: 0.9rem; }
+.muted { color: var(--hint); }
+.err { color: #e53935; }
+.ok { color: #2e7d32; }

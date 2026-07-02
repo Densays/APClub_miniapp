@@ -1,0 +1,42 @@
+# Render Blueprint для API-сервера APClub (Node + Express + long-polling бот).
+# Импорт: Render → New → Blueprint → выбрать этот репозиторий.
+# Секреты (sync:false) задаются вручную в дашборде Render.
+#
+# ВАЖНО: бот работает через long-polling — процесс должен быть ВСЕГДА жив.
+# Бесплатный план Render засыпает при простое → выбирай план Starter (always-on),
+# иначе бот перестанет отвечать и рассылки не пойдут.
+services:
+  - type: web
+    name: apclub-api
+    runtime: node
+    plan: starter            # always-on; free засыпает и роняет бота
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm run start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: 22.18.0        # нужен ≥22.6 для --experimental-strip-types
+      - key: ALLOW_DEV_AUTH
+        value: "0"            # В ПРОДЕ обязательно 0 (иначе вход без пароля)
+      - key: PORT
+        value: "3000"
+      # ── Секреты — задать в дашборде Render (Environment) ──
+      - key: BOT_TOKEN
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false           # сменить с дефолтного!
+      - key: ADMIN_IDS
+        sync: false           # твой Telegram-id (для админки внутри Telegram)
+      # ── Ссылки (задать после деплоя фронта) ──
+      - key: MINIAPP_URL
+        sync: false           # https-адрес Mini App (Vercel) — web_app в личке
+      - key: MINIAPP_LINK
+        sync: false           # t.me/apclubnews_bot/<app> — url-кнопка в канале
+      - key: CHANNEL_ID
+        sync: false           # @канал или -100... для закреплённого приветствия

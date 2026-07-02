@@ -1,0 +1,250 @@
+.profile { min-height: 100%; background: var(--bg); }
+
+.profile-body {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 6px 16px 96px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ---- Подшапка: Назад + поиск ---- */
+.pf-subhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 2px 0;
+}
+.pf-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  color: var(--gold);
+  font-size: 1.05rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+.pf-search {
+  display: flex;
+  background: none;
+  border: none;
+  color: var(--gold);
+  cursor: pointer;
+  padding: 4px;
+}
+
+/* ---- Карточка пользователя ---- */
+.pf-user {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 14px 16px;
+  text-align: left;
+  background: var(--card);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 18px;
+  color: var(--text);
+}
+.pf-user-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--card-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1.3rem;
+  color: var(--gold);
+}
+.pf-user-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.pf-user-info { flex: 1; min-width: 0; }
+.pf-user-name { font-size: 1.4rem; font-weight: 700; line-height: 1.15; }
+.pf-user-meta { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.pf-badge {
+  background: var(--beige);
+  color: #1a1408;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 4px 14px;
+  border-radius: 999px;
+}
+.pf-until { color: var(--text-dim); font-size: 0.95rem; white-space: nowrap; }
+.pf-chevron { color: var(--gold); font-size: 1.6rem; line-height: 1; }
+
+/* Кнопка «Редактировать» вместо стрелочки в карточке */
+.pf-edit {
+  flex-shrink: 0;
+  background: none;
+  border: 1px solid var(--gold-border);
+  color: var(--gold);
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 999px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.pf-edit:active { opacity: 0.85; }
+
+/* ---- О себе ---- */
+.pf-about {
+  background: var(--card);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 18px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.pf-about-bio { color: var(--text-dim); font-size: 1.05rem; }
+.pf-about-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text);
+  font-size: 1.05rem;
+}
+.pf-about-row svg { color: var(--text-dim); flex-shrink: 0; }
+
+/* ---- Прогресс разблокировки ---- */
+.pf-progress { display: flex; flex-direction: column; gap: 12px; }
+.pf-progress-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 1.1rem;
+  color: var(--text);
+}
+.pf-progress-count { font-weight: 700; }
+.pf-progress-bar {
+  height: 6px;
+  background: var(--card-2);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.pf-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--gd, #8a6010), var(--gold));
+  border-radius: 999px;
+}
+
+/* ---- Награды по месяцам ---- */
+.pf-levels {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  padding: 2px 2px 8px;
+  scrollbar-width: none;
+}
+.pf-levels::-webkit-scrollbar { display: none; }
+.pf-level {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  min-width: 96px;
+}
+.pf-level-month { font-size: 1rem; color: var(--text); }
+.pf-level-badge {
+  background: var(--card-2);
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 5px 14px;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+.pf-level-circle {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 2px solid var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  margin: 2px 0;
+}
+.pf-level-circle.is-active {
+  border-color: var(--gold);
+  color: var(--gold);
+  box-shadow: 0 0 0 4px rgba(217, 185, 116, 0.08);
+}
+.pf-level-circle.is-done {
+  border-color: var(--gold);
+  background: var(--gold);
+  color: #1a1408;
+}
+.pf-level-status {
+  width: 100%;
+  text-align: center;
+  white-space: nowrap;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+}
+.pf-level-status.is-soon {
+  color: var(--gold);
+  border-color: var(--gold-border);
+}
+.pf-level-status.is-done {
+  color: #1a1408;
+  background: var(--gold);
+  border-color: var(--gold);
+}
+
+/* ---- Подсказка о прокрутке ---- */
+.pf-scroll-hint {
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 0.98rem;
+  margin: -2px 0 2px;
+}
+.pf-scroll-hint span { color: var(--gold); }
+
+/* ---- Меню ---- */
+.pf-menu { display: flex; flex-direction: column; gap: 12px; }
+.pf-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 18px 20px;
+  background: var(--card);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 14px;
+  color: var(--text);
+  font-size: 1.1rem;
+  text-align: left;
+  cursor: pointer;
+}
+.pf-menu-item:active { opacity: 0.85; }
+
+/* ---- Продлить подписку ---- */
+.pf-subscribe {
+  width: 100%;
+  border: none;
+  border-radius: 999px;
+  background: var(--beige);
+  color: #1a1408;
+  font-weight: 700;
+  font-size: 1.1rem;
+  padding: 18px;
+  margin-top: 8px;
+  cursor: pointer;
+}
+.pf-subscribe:active { opacity: 0.9; }

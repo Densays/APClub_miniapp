@@ -1,0 +1,1241 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>APClub — Онбординг</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@200;300;400;600;700;800;900&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --gold-light: #F7E7A7;
+    --gold-mid: #D6B35A;
+    --gold-deep: #B88A2E;
+    --bg-dark: #070A0F;
+    --bg-card: #0B0F17;
+    --text-primary: #EAF0FF;
+    --text-muted: rgba(234,240,255,.65);
+    --border-gold: rgba(214,179,90,0.28);
+    --border-subtle: rgba(255,255,255,0.07);
+
+    /* Ширина мобильной колонки — как на главном экране приложения */
+    --app-w: 480px;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: #050709;
+    color: var(--text-primary);
+    font-family: 'Roboto', sans-serif;
+    font-size: 15px;
+    line-height: 1.65;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  #progress-bar {
+    position: fixed;
+    top: 0; left: 0;
+    height: 2px;
+    width: 0%;
+    background: linear-gradient(90deg, var(--gold-deep), var(--gold-light));
+    z-index: 1000;
+    transition: width .2s ease;
+  }
+
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    max-width: var(--app-w);
+    margin: 0 auto;
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(5,7,9,.88);
+    backdrop-filter: blur(18px);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .nav-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+  }
+
+  .nav-logo img {
+    height: 24px;
+    width: auto;
+  }
+
+  .nav-steps {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .nav-step {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 1px solid var(--border-gold);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Unbounded', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-decoration: none;
+    transition: all .25s;
+  }
+
+  .nav-step:hover,
+  .nav-step.active {
+    background: rgba(214,179,90,.15);
+    color: var(--gold-mid);
+    border-color: var(--gold-mid);
+  }
+
+  main {
+    padding-top: 70px;
+  }
+
+  .section {
+    padding: 0 16px;
+    max-width: var(--app-w);
+    margin: 0 auto;
+  }
+
+  .hero {
+    padding: 56px 16px 40px;
+    max-width: var(--app-w);
+    margin: 0 auto;
+    text-align: center;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 16px;
+    border: 1px solid rgba(214,179,90,.35);
+    border-radius: 999px;
+    background: rgba(214,179,90,.07);
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    color: rgba(234,240,255,.7);
+    font-family: 'Roboto', sans-serif;
+    font-weight: 500;
+    text-transform: uppercase;
+    margin-bottom: 28px;
+  }
+
+  .badge-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: linear-gradient(180deg, var(--gold-light) 0%, var(--gold-deep) 100%);
+    flex-shrink: 0;
+  }
+
+  .hero-logo {
+    width: 220px;
+    height: auto;
+    margin: 0 auto 24px;
+    display: block;
+  }
+
+  .hero-title {
+    font-family: 'Unbounded', sans-serif;
+    font-weight: 800;
+    font-size: 38px;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    line-height: 1.1;
+    color: var(--text-primary);
+    margin-bottom: 16px;
+  }
+
+  .hero-sub {
+    font-size: 14px;
+    color: var(--text-muted);
+    max-width: 540px;
+    margin: 0 auto 40px;
+    line-height: 1.7;
+  }
+
+  .hero-stats {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 48px;
+  }
+
+  .stat-card {
+    background: rgba(255,255,255,.03);
+    border: 1px solid var(--border-subtle);
+    border-radius: 16px;
+    padding: 12px 24px;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .stat-num {
+    font-family: 'Unbounded', sans-serif;
+    font-weight: 900;
+    font-size: 24px;
+    background: linear-gradient(180deg, var(--gold-light) 0%, var(--gold-mid) 60%, var(--gold-deep) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    line-height: 1;
+  }
+
+  .stat-label {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .hero-image-section {
+    max-width: 100%;
+    margin: 32px auto;
+    border-radius: 16px;
+    overflow: hidden;
+  }
+
+  .hero-image {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  .checklist-card {
+    background: rgba(255,255,255,.025);
+    border: 1px solid var(--border-gold);
+    border-radius: 20px;
+    padding: 28px;
+    margin: 20px 0 60px;
+  }
+
+  .card-title {
+    font-family: 'Unbounded', sans-serif;
+    font-weight: 700;
+    font-size: 15px;
+    color: var(--text-primary);
+    margin-bottom: 16px;
+  }
+
+  .checklist {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .checklist li {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    font-size: 14px;
+    color: var(--text-muted);
+  }
+
+  .check-num {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 1px solid var(--border-gold);
+    background: rgba(214,179,90,.06);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Unbounded', sans-serif;
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--gold-mid);
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .note-box {
+    margin-top: 18px;
+    padding: 12px 14px;
+    border: 1px dashed rgba(214,179,90,.3);
+    border-radius: 12px;
+    background: rgba(214,179,90,.05);
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+
+  .note-box strong {
+    color: #A89050;
+  }
+
+  .step-block {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0;
+    margin-bottom: 20px;
+  }
+
+  @media (max-width: 768px) {
+    .step-block { grid-template-columns: 1fr; }
+    nav { padding: 12px 16px; }
+    .nav-steps { display: none; }
+    .hero { padding: 50px 16px 40px; }
+    .hero-stats { gap: 8px; }
+    .stat-card { min-width: 120px; padding: 12px 16px; }
+    .section { padding: 0 12px; }
+    .checklist-card { padding: 20px 16px; margin: 16px 0 40px; }
+  }
+
+  .step-left {
+    border-radius: 20px 20px 0 0;
+    padding: 24px 18px 20px;
+    position: relative;
+    background:
+      radial-gradient(800px 400px at 10% 5%, rgba(214,179,90,.16), transparent 55%),
+      radial-gradient(600px 350px at 90% 15%, rgba(130,110,60,.12), transparent 50%),
+      linear-gradient(180deg, #070A0F 0%, #0B0F17 50%, #070A12 100%);
+    border: 1px solid var(--border-gold);
+    border-bottom: none;
+  }
+
+  .step-left::before {
+    content: "";
+    position: absolute;
+    inset: 10px;
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.05);
+    pointer-events: none;
+  }
+
+  .step-right {
+    border-radius: 0 0 20px 20px;
+    padding: 20px 18px 24px;
+    background: rgba(255,255,255,.02);
+    border: 1px solid rgba(214,179,90,0.18);
+    border-top: none;
+  }
+
+  @media (max-width: 768px) {
+    .step-left {
+      border-radius: 20px 20px 0 0;
+      border-right: 1px solid var(--border-gold);
+      border-bottom: none;
+      padding: 24px 18px 20px;
+    }
+    .step-right {
+      border-radius: 0 0 20px 20px;
+      border-left: 1px solid rgba(214,179,90,0.18);
+      border-top: none;
+      padding: 20px 18px 24px;
+    }
+    .step-number { font-size: clamp(20px, 7vw, 32px); }
+    .content-heading { font-size: 13px; }
+    .schedule-grid { grid-template-columns: 1fr; gap: 8px; }
+    .btn { width: 100%; justify-content: center; font-size: 11px; padding: 13px 16px; }
+    .intro-template { padding: 14px; font-size: 12px; }
+    .day-block { padding-bottom: 16px; margin-bottom: 16px; }
+    .note-box { font-size: 12px; padding: 10px 12px; }
+    .knowledge-card { padding: 32px 20px; }
+    .hero-title { font-size: clamp(26px, 8vw, 44px); }
+    .hero-sub { font-size: 13px; }
+    .hero-image-section { border-radius: 14px; }
+  }
+
+  .step-number {
+    font-family: 'Unbounded', sans-serif;
+    font-weight: 800;
+    font-size: 26px;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    color: var(--text-primary);
+    margin-bottom: 10px;
+    line-height: 1.1;
+  }
+
+  .step-number span {
+    background: linear-gradient(180deg, var(--gold-light) 0%, var(--gold-mid) 60%, var(--gold-deep) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .step-desc {
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.65;
+    max-width: 400px;
+  }
+
+  .step-desc p { margin-bottom: 10px; }
+  .step-desc p:last-child { margin-bottom: 0; }
+
+  .content-heading {
+    font-family: 'Unbounded', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--text-primary);
+    margin: 22px 0 8px;
+  }
+
+  .content-heading:first-child { margin-top: 0; }
+
+  .content-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-left: 0;
+  }
+
+  .content-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.55;
+  }
+
+  .content-list li::before {
+    content: "";
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--gold-mid);
+    margin-top: 7px;
+    flex-shrink: 0;
+  }
+
+  .day-block {
+    margin-bottom: 22px;
+    padding-bottom: 22px;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .day-block:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+  }
+
+  .day-time {
+    font-family: 'Unbounded', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--gold-mid);
+    margin-bottom: 2px;
+  }
+
+  .schedule-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin: 10px 0;
+  }
+
+  @media (max-width: 500px) {
+    .schedule-grid { grid-template-columns: 1fr; }
+  }
+
+  .schedule-item {
+    background: rgba(255,255,255,.025);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    padding: 14px;
+  }
+
+  .schedule-item .day-label {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--gold-mid);
+    margin-bottom: 4px;
+  }
+
+  .schedule-item .day-desc {
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+
+  .chat-block {
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .chat-block:last-of-type {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+  }
+
+  .chat-tag {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    font-family: 'Unbounded', sans-serif;
+  }
+
+  .chat-tag.main { background: rgba(214,179,90,.12); color: var(--gold-mid); }
+  .chat-tag.advanced { background: rgba(130,110,200,.12); color: #9F8EE0; }
+  .chat-tag.news { background: rgba(60,180,120,.1); color: #4DBF8A; }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 18px;
+    border-radius: 10px;
+    font-family: 'Unbounded', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-decoration: none;
+    text-transform: uppercase;
+    transition: all .2s;
+    cursor: pointer;
+    border: none;
+    margin-top: 10px;
+  }
+
+  .btn-gold {
+    background: linear-gradient(135deg, rgba(214,179,90,.18) 0%, rgba(214,179,90,.08) 100%);
+    border: 1px solid rgba(214,179,90,.4);
+    color: var(--gold-mid);
+  }
+
+  .btn-gold:hover {
+    background: linear-gradient(135deg, rgba(214,179,90,.28) 0%, rgba(214,179,90,.14) 100%);
+    border-color: var(--gold-mid);
+    color: var(--gold-light);
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, #B88A2E 0%, #D6B35A 100%);
+    color: #0D0900;
+    border: 1px solid transparent;
+  }
+
+  .btn-primary:hover {
+    background: linear-gradient(135deg, #D6B35A 0%, #F7E7A7 100%);
+  }
+
+  .intro-template {
+    background: rgba(5,7,9,.7);
+    border: 1px solid var(--border-gold);
+    border-radius: 14px;
+    padding: 18px 20px;
+    margin: 14px 0;
+    font-family: 'Roboto', sans-serif;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-muted);
+  }
+
+  .intro-template .intro-line {
+    display: flex;
+    gap: 8px;
+    padding: 5px 0;
+  }
+
+  .intro-template .intro-line::before {
+    content: "—";
+    color: var(--gold-mid);
+    flex-shrink: 0;
+  }
+
+  .knowledge-card {
+    background:
+      radial-gradient(600px 300px at 50% 50%, rgba(214,179,90,.08), transparent 70%),
+      linear-gradient(180deg, #070A0F 0%, #0B0F17 100%);
+    border: 1px solid var(--border-gold);
+    border-radius: 24px;
+    padding: 48px;
+    text-align: center;
+    margin: 0 0 80px;
+  }
+
+  .knowledge-card .hero-title {
+    font-size: clamp(22px, 3.5vw, 36px);
+    margin-bottom: 12px;
+  }
+
+  .knowledge-card .hero-sub {
+    margin-bottom: 28px;
+  }
+
+  .section-gap { height: 20px; }
+  .section-gap-lg { height: 60px; }
+
+  footer {
+    text-align: center;
+    padding: 32px 20px 48px;
+    font-size: 12px;
+    color: rgba(234,240,255,.3);
+    letter-spacing: .05em;
+  }
+
+  footer strong {
+    color: var(--gold-mid);
+    font-family: 'Unbounded', sans-serif;
+    font-weight: 700;
+    font-size: 11px;
+  }
+
+  .copy-phrase {
+    background: rgba(214,179,90,.06);
+    border: 1px solid var(--border-gold);
+    border-radius: 14px;
+    padding: 16px 18px;
+    margin: 4px 0 0;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .copy-text {
+    flex: 1;
+    font-size: 14px;
+    font-style: italic;
+    color: var(--text-primary);
+    line-height: 1.55;
+  }
+
+  .copy-btn {
+    flex-shrink: 0;
+    background: none;
+    border: 1px solid var(--border-gold);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-family: 'Unbounded', sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--gold-mid);
+    cursor: pointer;
+    letter-spacing: .04em;
+    white-space: nowrap;
+    transition: all .2s;
+  }
+
+  .copy-btn:hover {
+    background: rgba(214,179,90,.12);
+    border-color: var(--gold-mid);
+    color: var(--gold-light);
+  }
+
+  @media (max-width: 768px) {
+    .copy-phrase { flex-direction: column; gap: 10px; }
+    .copy-btn { width: 100%; justify-content: center; text-align: center; }
+    .copy-text { font-size: 13px; }
+  }
+
+  /* ===================== ИНФОГРАФИКА ===================== */
+
+  /* Ключевые метрики — плитки с крупной золотой цифрой */
+  .info-metrics {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin: 2px 0 22px;
+  }
+  .metric {
+    background: rgba(255,255,255,.03);
+    border: 1px solid var(--border-subtle);
+    border-radius: 14px;
+    padding: 14px 10px;
+    text-align: center;
+  }
+  .metric-num {
+    font-family: 'Unbounded', sans-serif;
+    font-weight: 900;
+    font-size: 26px;
+    line-height: 1;
+    background: linear-gradient(180deg, var(--gold-light) 0%, var(--gold-mid) 60%, var(--gold-deep) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .metric-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 6px;
+    line-height: 1.35;
+  }
+
+  /* Сравнение двух путей участия */
+  .compare-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin: 4px 0 6px;
+  }
+  .compare-card {
+    border-radius: 14px;
+    padding: 14px 12px;
+    border: 1px solid var(--border-subtle);
+    background: rgba(255,255,255,.02);
+  }
+  .compare-card.good { border-color: rgba(77,191,138,.4); background: rgba(77,191,138,.06); }
+  .compare-card.bad  { border-color: rgba(224,122,122,.38); background: rgba(224,122,122,.05); }
+  .compare-head {
+    font-family: 'Unbounded', sans-serif;
+    font-weight: 700;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 10px;
+    line-height: 1.2;
+  }
+  .compare-card.good .compare-head { color: #4DBF8A; }
+  .compare-card.bad  .compare-head { color: #E07A7A; }
+  .compare-card ul { list-style: none; display: flex; flex-direction: column; gap: 7px; }
+  .compare-card li {
+    display: flex;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.4;
+  }
+  .compare-card li::before {
+    content: "";
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    margin-top: 6px;
+    flex-shrink: 0;
+  }
+  .compare-card.good li::before { background: #4DBF8A; }
+  .compare-card.bad  li::before { background: #E07A7A; }
+
+  /* Таймлайн членства */
+  .timeline {
+    position: relative;
+    margin: 6px 0 2px;
+    padding-left: 26px;
+  }
+  .timeline::before {
+    content: "";
+    position: absolute;
+    left: 7px; top: 6px; bottom: 6px;
+    width: 2px;
+    background: linear-gradient(180deg, var(--gold-mid), var(--border-subtle));
+  }
+  .tl-item { position: relative; padding-bottom: 16px; }
+  .tl-item:last-child { padding-bottom: 0; }
+  .tl-item::before {
+    content: "";
+    position: absolute;
+    left: -26px; top: 1px;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    border: 2px solid var(--gold-mid);
+    background: var(--bg-dark);
+  }
+  .tl-title {
+    font-family: 'Unbounded', sans-serif;
+    font-weight: 700;
+    font-size: 12px;
+    color: var(--gold-mid);
+    margin-bottom: 2px;
+  }
+  .tl-desc { font-size: 12px; color: var(--text-muted); line-height: 1.45; }
+
+  /* Эфиры — чипы дней */
+  .efir-chips {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin: 4px 0 8px;
+  }
+  .efir-chip {
+    border: 1px solid var(--border-gold);
+    border-radius: 14px;
+    padding: 14px 10px;
+    background: rgba(214,179,90,.05);
+    text-align: center;
+  }
+  .efir-icon { font-size: 22px; line-height: 1; }
+  .efir-day {
+    font-family: 'Unbounded', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--text-primary);
+    margin-top: 8px;
+  }
+  .efir-time { font-size: 11px; color: var(--gold-mid); margin-top: 2px; font-weight: 500; }
+  .efir-note { font-size: 11px; color: var(--text-muted); margin-top: 6px; line-height: 1.35; }
+
+  /* Плитки тем чата (Сообщество) */
+  .topic-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin: 10px 0 4px;
+  }
+  .topic-tile {
+    border: 1px solid var(--border-subtle);
+    border-radius: 14px;
+    padding: 14px 12px;
+    background: rgba(255,255,255,.03);
+  }
+  .topic-icon { font-size: 20px; line-height: 1; }
+  .topic-name {
+    font-family: 'Unbounded', sans-serif;
+    font-weight: 700;
+    font-size: 12px;
+    color: var(--gold-mid);
+    margin-top: 8px;
+  }
+  .topic-desc { font-size: 11px; color: var(--text-muted); margin-top: 3px; line-height: 1.4; }
+
+  /* Заголовок с иконкой */
+  .info-cap {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--gold-mid);
+    font-family: 'Unbounded', sans-serif;
+    font-weight: 600;
+    margin: 0 0 10px;
+  }
+
+  [id] { scroll-margin-top: 80px; }
+</style>
+</head>
+<body>
+
+<div id="progress-bar"></div>
+
+<nav>
+  <a class="nav-logo" href="/">
+    <img src="/logo.png" alt="APClub">
+  </a>
+  <div class="nav-steps">
+    <a href="#step1" class="nav-step" title="Правила">1</a>
+    <a href="#step2" class="nav-step" title="Расписание">2</a>
+    <a href="#step3" class="nav-step" title="Чаты">3</a>
+    <a href="#step4" class="nav-step" title="#INTRO">4</a>
+  </div>
+</nav>
+
+<main>
+
+  <!-- HERO -->
+  <div id="hero" class="hero">
+    <div class="badge"><span class="badge-dot"></span>ONBOARDING</div>
+    <img class="hero-logo" src="/logo.png" alt="APClub">
+    <h1 class="hero-title">Добро пожаловать</h1>
+    <p class="hero-sub">
+      Теперь ты в рабочей среде, где практики работают на рынке каждый день.
+      Пройди онбординг, чтобы полноценно включиться в жизнь клуба.
+    </p>
+
+    <div class="hero-stats">
+      <div class="stat-card">
+        <div class="stat-num">4</div>
+        <div class="stat-label">шага до старта</div>
+      </div>
+    </div>
+
+    <div class="hero-image-section">
+      <img class="hero-image" src="/community.png" alt="APClub резиденты">
+    </div>
+
+    <div class="checklist-card" style="margin-top:0;">
+      <div class="card-title">Что нужно сделать сейчас</div>
+      <ol class="checklist">
+        <li><span class="check-num">1</span><span>Прочитать устав и правила комьюнити</span></li>
+        <li><span class="check-num">2</span><span>Изучить расписание и формат эфиров</span></li>
+        <li><span class="check-num">3</span><span>Войти в новостной канал и основной чат</span></li>
+        <li><span class="check-num">4</span><span>Заполнить личный профиль в мини-приложении</span></li>
+        <li><span class="check-num">5</span><span>Отправить ключевое слово в общий чат</span></li>
+        <li><span class="check-num">6</span><span>Рассказать о себе в #INTRO</span></li>
+      </ol>
+      <div class="note-box"><strong>Важно:</strong> каждый шаг влияет на твой статус в клубе. Не пропускай ни одного.</div>
+    </div>
+  </div>
+
+  <!-- STEP 1 -->
+  <div id="step1" class="section">
+    <div class="step-block">
+      <div class="step-left">
+        <div class="badge" style="margin-bottom:20px;"><span class="badge-dot"></span>APClub · Onboarding</div>
+        <div class="step-number"><span>Шаг 1</span> — Устав</div>
+        <div class="step-desc">
+          <p>APClub — сообщество людей, объединяющихся для взаимопомощи и достижения совместных целей.</p>
+          <p>Мы не подписка на контент. Мы — рабочая среда для практиков, которые ежедневно работают на рынке.</p>
+          <p>Прочитай устав полностью. Ты соглашаешься с этими правилами, становясь частью клуба.</p>
+        </div>
+      </div>
+      <div class="step-right">
+
+        <div class="info-cap">◆ Клуб в цифрах</div>
+        <div class="info-metrics">
+          <div class="metric">
+            <div class="metric-num">2</div>
+            <div class="metric-label">созвона<br>каждую неделю</div>
+          </div>
+          <div class="metric">
+            <div class="metric-num">90</div>
+            <div class="metric-label">дней членства<br>после программы</div>
+          </div>
+          <div class="metric">
+            <div class="metric-num">≤2</div>
+            <div class="metric-label">пропуска эфира<br>в месяц</div>
+          </div>
+          <div class="metric">
+            <div class="metric-num">1</div>
+            <div class="metric-label">финотчёт<br>до 1-го числа</div>
+          </div>
+        </div>
+
+        <div class="content-heading">Системные отчёты</div>
+        <div class="day-block">
+          <div class="day-time">Минимум раз в неделю</div>
+          <ul class="content-list">
+            <li>Делимся прогрессом, активами и результатами — плюс и минус</li>
+            <li>Цель — видеть реальную картину, поддерживать и корректировать</li>
+            <li>Лучшие резиденты отчитываются ежедневно, как только начинают практику</li>
+          </ul>
+        </div>
+
+        <div class="content-heading">Финальные отчёты</div>
+        <div class="day-block">
+          <div class="day-time">До 1-го числа каждого месяца</div>
+          <ul class="content-list">
+            <li>Рабочие дни за месяц, активы, применяемые стратегии</li>
+            <li>Финансовый результат ($), изменение депозита (%)</li>
+            <li>Пропуск финотчёта — нарушение базовых условий членства</li>
+          </ul>
+        </div>
+
+        <div class="content-heading">Эфиры — обязательная явка</div>
+        <div class="efir-chips">
+          <div class="efir-chip">
+            <div class="efir-icon">🎥</div>
+            <div class="efir-day">Четверг</div>
+            <div class="efir-time">19:00 МСК · Zoom</div>
+            <div class="efir-note">Основной. Камера обязательна</div>
+          </div>
+          <div class="efir-chip">
+            <div class="efir-icon">🎙️</div>
+            <div class="efir-day">Среда</div>
+            <div class="efir-time">15:00 МСК · онлайн</div>
+            <div class="efir-note">Ритм недели, новости</div>
+          </div>
+        </div>
+        <div class="day-block">
+          <div class="day-time">Четверг · Zoom-созвон — основной</div>
+          <ul class="content-list">
+            <li>Разборы кейсов, инсайты, вопросы и ответы</li>
+            <li>Камера обязательна — это живое сообщество, не вебинар</li>
+          </ul>
+        </div>
+        <div class="day-block">
+          <div class="day-time">Среда · Онлайн-созвон</div>
+          <ul class="content-list">
+            <li>Рабочий ритм недели, новости, подготовка к четвергу</li>
+          </ul>
+        </div>
+
+        <div class="content-heading">Два пути участия</div>
+        <div class="compare-grid">
+          <div class="compare-card good">
+            <div class="compare-head">✅ Активный</div>
+            <ul>
+              <li>Не более 2 пропусков эфира в месяц</li>
+              <li>Не более 1 пропуска финотчёта</li>
+              <li>Вклад в общее поле клуба</li>
+            </ul>
+          </div>
+          <div class="compare-card bad">
+            <div class="compare-head">⚠️ Неактивный</div>
+            <ul>
+              <li>При превышении пропусков — статус снимается автоматически</li>
+              <li>Далее: выход или продление по тарифам</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="content-heading">Членство и амбассадоры</div>
+        <div class="timeline">
+          <div class="tl-item">
+            <div class="tl-title">Программа завершена</div>
+            <div class="tl-desc">Стартовая точка твоего членства в клубе.</div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-title">+90 дней членства</div>
+            <div class="tl-desc">Полный доступ включён — работаешь, отчитываешься, растёшь.</div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-title">Далее — продление</div>
+            <div class="tl-desc">По действующим тарифам клуба.</div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-title">Статус амбассадора</div>
+            <div class="tl-desc">Привилегии и условно бесплатное продление — по решению команды за активность и отчётность.</div>
+          </div>
+        </div>
+
+        <div class="note-box" style="margin-top:18px;">
+          <strong>Главное правило:</strong> APClub привлекает практиков, а не наблюдателей. Если ты здесь — ты работаешь на рынке и делишься этим.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-gap"></div>
+
+  <!-- STEP 2 -->
+  <div id="step2" class="section">
+    <div class="step-block">
+      <div class="step-left">
+        <div class="badge" style="margin-bottom:20px;"><span class="badge-dot"></span>APClub · Onboarding</div>
+        <div class="step-number"><span>Шаг 2</span> — Расписание</div>
+        <div class="step-desc">
+          <p>APClub — это непрерывный процесс. Расписание задаёт темп, в котором формируются результаты, дисциплина и вовлечённость резидентов.</p>
+        </div>
+      </div>
+      <div class="step-right">
+        <div class="content-heading">Недельный ритм</div>
+
+        <div class="schedule-grid">
+          <div class="schedule-item">
+            <div class="day-label">Понедельник</div>
+            <div class="day-desc">Старт недели. Написать в чат, обозначить присутствие, задать рабочий ритм.</div>
+          </div>
+          <div class="schedule-item">
+            <div class="day-label">Среда · 15:00 МСК</div>
+            <div class="day-desc">«Онлайн Среда» — голосовой чат. Новости, вопросы, подготовка к разборам.</div>
+          </div>
+          <div class="schedule-item">
+            <div class="day-label">Четверг · 19:00 МСК</div>
+            <div class="day-desc">Групповой Zoom-созвон. Разбор кейсов, инсайты, активное участие + камера.</div>
+          </div>
+          <div class="schedule-item">
+            <div class="day-label">1-й четверг месяца</div>
+            <div class="day-desc">Разбор результатов за прошлый месяц: итоги, динамика, корректировка подходов.</div>
+          </div>
+        </div>
+
+        <div class="content-heading" style="margin-top:20px;">Ежедневная практика</div>
+        <div class="day-block" style="margin-bottom:0; padding-bottom:0; border:none;">
+          <div class="step-desc" style="margin-bottom:10px;">Каждый день в чате резиденты делятся:</div>
+          <ul class="content-list">
+            <li>Отчётом по сделкам — с чем работали</li>
+            <li>Какие стратегии использовали</li>
+            <li>Результатом в $ и % к депозиту</li>
+          </ul>
+          <div class="note-box" style="margin-top:14px;">
+            <strong>Важно:</strong> отчёты — главный показатель твоей вовлечённости. По ним принимается решение о статусе амбассадора и бесплатной подписке.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-gap"></div>
+
+  <!-- STEP 3 -->
+  <div id="step3" class="section">
+    <div class="step-block">
+      <div class="step-left">
+        <div class="badge" style="margin-bottom:20px;"><span class="badge-dot"></span>APClub · Onboarding</div>
+        <div class="step-number"><span>Шаг 3</span> — Чаты</div>
+        <div class="step-desc">
+          <p>Чаты APClub — это общее рабочее поле. Здесь задаются вопросы, фиксируются наблюдения, публикуются отчёты и происходит основное взаимодействие.</p>
+        </div>
+      </div>
+      <div class="step-right">
+
+        <div class="chat-block">
+          <span class="chat-tag news">Новости</span>
+          <div class="content-heading" style="margin-top:6px;">Новостной канал APClub</div>
+          <ul class="content-list">
+            <li>Анонсы, важные обновления и напоминания</li>
+            <li>Информация по созвонам, форматам и изменениям</li>
+            <li>Включи уведомления — пропустить важное здесь не следует</li>
+          </ul>
+          <a href="https://t.me/+ZClQeS4pv-g1OTNi" target="_blank" class="btn btn-gold">
+            Подписаться на канал →
+          </a>
+        </div>
+
+        <div class="chat-block" style="border-bottom:none; margin-bottom:0; padding-bottom:0;">
+          <span class="chat-tag main">Основной</span>
+          <div class="content-heading" style="margin-top:6px;">Основной чат клуба</div>
+          <p style="font-size:13px; color:var(--text-muted); margin:6px 0 10px; line-height:1.55;">
+            Один чат — всё рабочее пространство клуба. Внутри — отдельные темы для каждого направления:
+          </p>
+          <div class="topic-grid" style="margin-bottom:14px;">
+            <div class="topic-tile">
+              <div class="topic-icon">📈</div>
+              <div class="topic-name">Futures</div>
+              <div class="topic-desc">Основное направление, отчёты и разборы</div>
+            </div>
+            <div class="topic-tile">
+              <div class="topic-icon">🔄</div>
+              <div class="topic-name">DEX/DEX</div>
+              <div class="topic-desc">Тема для соответствующего направления</div>
+            </div>
+            <div class="topic-tile">
+              <div class="topic-icon">🔔</div>
+              <div class="topic-name">Уведомления</div>
+              <div class="topic-desc">Оперативные сигналы и алерты</div>
+            </div>
+            <div class="topic-tile">
+              <div class="topic-icon">💰</div>
+              <div class="topic-name">Финотчёты</div>
+              <div class="topic-desc">Публикация ежемесячных итогов</div>
+            </div>
+            <div class="topic-tile">
+              <div class="topic-icon">🗂️</div>
+              <div class="topic-name">Системные отчёты</div>
+              <div class="topic-desc">Еженедельные сводки по работе</div>
+            </div>
+            <div class="topic-tile">
+              <div class="topic-icon">💬</div>
+              <div class="topic-name">Общее</div>
+              <div class="topic-desc">Вопросы, обсуждения, взаимодействие</div>
+            </div>
+          </div>
+          <a href="https://t.me/+2I03_UzJMSw2ZDYy" target="_blank" class="btn btn-primary">
+            Войти в основной чат →
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-gap"></div>
+
+  <!-- STEP 4 -->
+  <div id="step4" class="section">
+    <div class="step-block">
+      <div class="step-left">
+        <div class="badge" style="margin-bottom:20px;"><span class="badge-dot"></span>APClub · Onboarding</div>
+        <div class="step-number"><span>Шаг 4</span> — Профиль и #INTRO</div>
+        <div class="step-desc">
+          <p>Последний шаг — три действия. Заполни профиль в мини-приложении, подтверди в чате, что прочитал правила, и представься сообществу.</p>
+          <p>#INTRO — твой вход. Здесь тебя видят, понимают твой уровень и начинают взаимодействовать.</p>
+        </div>
+      </div>
+      <div class="step-right">
+
+        <div class="content-heading">4.1 — Заполни личный профиль</div>
+        <div class="day-block">
+          <ul class="content-list" style="margin-bottom:12px;">
+            <li>Открой мини-приложение APClub</li>
+            <li>Перейди в раздел «Настройки аккаунта»</li>
+            <li>Заполни все поля личного профиля по форме</li>
+          </ul>
+          <div class="note-box">
+            <strong>Зачем:</strong> профиль помогает команде и резидентам понять, с кем они работают, и ускоряет адаптацию.
+          </div>
+        </div>
+
+        <div class="content-heading">4.2 — Подтверждение устава в чате</div>
+        <div class="day-block">
+          <p style="font-size:13px; color:var(--text-muted); margin-bottom:10px; line-height:1.55;">
+            После прочтения устава скопируй и отправь эту фразу в основной чат:
+          </p>
+          <div class="copy-phrase" id="confirm-phrase">
+            <div class="copy-text">С Уставом сообщества APClub ознакомлен(а), правила принимаю и обязуюсь соблюдать.</div>
+            <button class="copy-btn" onclick="(function(){var t=document.getElementById('confirm-phrase').querySelector('.copy-text');navigator.clipboard.writeText(t.innerText).then(function(){var b=document.querySelector('.copy-btn');b.textContent='Скопировано ✓';b.style.color='#4DBF8A';setTimeout(function(){b.textContent='Скопировать';b.style.color='';},2000);});})()">Скопировать</button>
+          </div>
+          <ul class="content-list" style="margin-top:12px;">
+            <li>Подтверждает ознакомление с правилами и уставом клуба</li>
+            <li>Подтверждает готовность соблюдать и способствовать развитию</li>
+            <li>Без этого сообщения онбординг считается незавершённым</li>
+          </ul>
+        </div>
+
+        <div class="content-heading">4.3 — #INTRO в общем чате</div>
+        <div class="day-block" style="border-bottom:none; margin-bottom:0; padding-bottom:0;">
+          <p style="font-size:13px; color:var(--text-muted); margin-bottom:10px; line-height:1.55;">Что написать — коротко и по сути:</p>
+          <ul class="content-list" style="margin-bottom:14px;">
+            <li>Кто ты и откуда</li>
+            <li>Твой опыт в рынке / арбитраже</li>
+            <li>Откуда узнал об APClub</li>
+            <li>С каким направлением сейчас работаешь или планируешь</li>
+            <li>Текущая цель в APClub</li>
+          </ul>
+
+          <div class="intro-template">
+            <div class="intro-line">Привет, меня зовут [имя], из [город]</div>
+            <div class="intro-line">В рынке [N] лет, занимаюсь [направление]</div>
+            <div class="intro-line">Узнал об APClub через [источник]</div>
+            <div class="intro-line">Сейчас работаю с [Futures / DEX]</div>
+            <div class="intro-line">Цель в APClub: [конкретная цель]</div>
+          </div>
+
+          <a href="https://t.me/c/2437297030/1" target="_blank" class="btn btn-primary" style="margin-top:16px;">
+            Написать #INTRO →
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  <strong>APClub</strong> &nbsp;·&nbsp; Онбординг резидента &nbsp;·&nbsp; 2026
+</footer>
+
+<script>
+  const bar = document.getElementById('progress-bar');
+  const steps = document.querySelectorAll('.nav-step');
+
+  function updateProgress() {
+    const doc = document.documentElement;
+    const scrollTop = window.scrollY;
+    const scrollHeight = doc.scrollHeight - window.innerHeight;
+    const pct = scrollHeight > 0 ? (scrollTop / scrollHeight) * 100 : 0;
+    bar.style.width = pct + '%';
+
+    const ids = ['hero','step1','step2','step3','step4'];
+    let current = 'hero';
+    ids.forEach(id => {
+      const el = document.getElementById(id);
+      if (el && el.getBoundingClientRect().top <= 100) current = id;
+    });
+
+    steps.forEach(s => {
+      const href = s.getAttribute('href').slice(1);
+      s.classList.toggle('active', href === current);
+    });
+  }
+
+  window.addEventListener('scroll', updateProgress, { passive: true });
+  updateProgress();
+</script>
+
+</body>
+</html>

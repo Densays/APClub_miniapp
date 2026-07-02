@@ -1,0 +1,25 @@
+.countdown {
+  padding: 4px 0;
+  text-align: center;
+}
+.cd-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+.cd-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.cd-item-wrap { display: inline-flex; align-items: center; gap: 6px; }
+.cd-item { display: flex; flex-direction: column; align-items: center; }
+.cd-val {
+  font-size: 1.4rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.cd-sep { font-size: 1.2rem; font-weight: 700; color: var(--text-muted); }
+.cd-lbl { font-size: 0.55rem; letter-spacing: 0.04em; margin-top: 2px; }

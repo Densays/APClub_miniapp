@@ -1,0 +1,38 @@
+.community {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.community-photo {
+  flex: 1;
+  min-width: 0;
+  border-radius: 14px;
+  overflow: hidden;
+}
+.community-photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Кнопка в стиле Telegram: чёрная с синей обводкой */
+.community-chat {
+  flex: 0 0 auto;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #2aabee;
+  border-radius: 12px;
+  background: #0d0d0f;
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  padding: 11px 16px;
+  cursor: pointer;
+}
+.community-chat:active { transform: scale(0.97); }
+.tg-logo { display: block; flex-shrink: 0; }

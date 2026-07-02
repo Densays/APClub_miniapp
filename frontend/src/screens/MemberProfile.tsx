@@ -1,0 +1,150 @@
+import { useEffect, useState } from 'react'
+import './MemberProfile.css'
+import Header from '../components/Header'
+import { getProfileById } from '../api'
+import type { ProfileData } from '../api'
+import { useAchievements } from '../catalog'
+import Stars from '../components/Stars'
+
+function PinIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 21s-7-6-7-11a7 7 0 0 1 14 0c0 5-7 11-7 11z" />
+      <circle cx="12" cy="10" r="2.5" />
+    </svg>
+  )
+}
+function HeartIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.5-7 10-7 10z" />
+    </svg>
+  )
+}
+
+const SOCIAL_LABELS: { key: keyof NonNullable<ProfileData['social']>; label: string }[] = [
+  { key: 'instagram', label: 'Instagram' },
+  { key: 'linkedin', label: 'LinkedIn' },
+  { key: 'telegram', label: 'Telegram' },
+  { key: 'web', label: 'Web' },
+]
+
+export default function MemberProfile({
+  userId,
+  onBack,
+}: {
+  userId: string
+  onBack?: () => void
+}) {
+  const [p, setP] = useState<ProfileData | null>(null)
+  const [error, setError] = useState(false)
+  const CATALOG = useAchievements()
+
+  useEffect(() => {
+    let alive = true
+    getProfileById(userId)
+      .then((data) => { if (alive) setP(data) })
+      .catch(() => { if (alive) setError(true) })
+    return () => { alive = false }
+  }, [userId])
+
+  const name = p ? `${p.firstName ?? ''} ${p.lastName ?? ''}`.trim() || 'Участник' : ''
+  const initials = p ? `${p.firstName?.[0] ?? ''}${p.lastName?.[0] ?? ''}` || 'AP' : ''
+  const socials = SOCIAL_LABELS.filter(({ key }) => p?.social?.[key])
+  const earned = new Set(p?.achievements ?? [])
+  const earnedList = CATALOG.filter((a) => earned.has(a.id))
+
+  return (
+    <div className="member-profile">
+      <Header title="Профиль" onBack={onBack} />
+
+      <div className="mp-body">
+        <button className="mp-back" onClick={onBack}>‹ Назад</button>
+
+        {error && <div className="mp-empty">Профиль недоступен.</div>}
+        {!error && !p && <div className="mp-empty">Загрузка…</div>}
+
+        {p && (
+          <>
+            <div className="mp-hero">
+              <div className="mp-avatar">
+                {p.avatar ? <img src={p.avatar} alt="" /> : <span>{initials}</span>}
+              </div>
+              <div className="mp-name">{name}</div>
+              {p.username && <div className="mp-username">@{p.username}</div>}
+              {p.occupation && <div className="mp-occupation">{p.occupation}</div>}
+            </div>
+
+            {(p.about || p.city || p.maritalStatus) && (
+              <div className="mp-card mp-about">
+                {p.about && <div className="mp-about-bio">{p.about}</div>}
+                {p.city && <div className="mp-row"><PinIcon /><span>{p.city}</span></div>}
+                {p.maritalStatus && <div className="mp-row"><HeartIcon /><span>{p.maritalStatus}</span></div>}
+              </div>
+            )}
+
+            <div className="mp-section">
+              <div className="mp-section-title">Достижения</div>
+              <div className="mp-card mp-ach">
+                <div className="mp-ach-stars">
+                  <Stars filled={earnedList.length} total={CATALOG.length} size={16} />
+                </div>
+                {earnedList.length > 0 ? (
+                  <div className="mp-ach-list">
+                    {earnedList.map((a) => (
+                      <div className="mp-ach-item" key={a.id}>
+                        <span className="mp-ach-ico">{a.icon}</span>
+                        <span className="mp-ach-name">{a.title}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mp-ach-empty">Пока нет достижений</div>
+                )}
+              </div>
+            </div>
+
+            {p.strengths && (
+              <div className="mp-section">
+                <div className="mp-section-title">Сильные стороны</div>
+                <div className="mp-card mp-text">{p.strengths}</div>
+              </div>
+            )}
+            {p.weaknesses && (
+              <div className="mp-section">
+                <div className="mp-section-title">Слабые стороны</div>
+                <div className="mp-card mp-text">{p.weaknesses}</div>
+              </div>
+            )}
+            {p.canHelp && (
+              <div className="mp-section">
+                <div className="mp-section-title">Чем может быть полезен</div>
+                <div className="mp-card mp-text">{p.canHelp}</div>
+              </div>
+            )}
+
+            {socials.length > 0 && (
+              <div className="mp-section">
+                <div className="mp-section-title">Соцсети</div>
+                <div className="mp-card mp-socials">
+                  {socials.map(({ key, label }) => (
+                    <a
+                      key={key}
+                      className="mp-social"
+                      href={p.social?.[key]}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                    >
+                      <span>{label}</span>
+                      <span className="mp-social-arrow">↗</span>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  )
+}

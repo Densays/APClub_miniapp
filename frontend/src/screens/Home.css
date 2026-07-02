@@ -1,0 +1,74 @@
+.home { min-height: 100%; background: var(--bg); }
+
+.home-body {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 8px 16px 96px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+/* Верхний ряд: логотип слева, кнопка ОНБОРДИНГ справа */
+.home-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 8px 0 4px;
+}
+.home-logo {
+  width: 150px;
+  height: auto;
+  object-fit: contain;
+}
+
+/* Кнопка ОНБОРДИНГ — в стиле «Найти бадди» (со свечением) */
+.onboarding-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 190px;
+  border: 1px solid var(--gold);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(217,185,116,0.22), rgba(217,185,116,0.08));
+  color: var(--gold);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  font-size: 0.85rem;
+  padding: 12px 18px;
+  white-space: nowrap;
+  cursor: pointer;
+  animation: buddyGlow 2s ease-in-out infinite;
+}
+.onboarding-btn:active { transform: scale(0.97); }
+.onboarding-icon { font-size: 1.1rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .onboarding-btn { animation: none; }
+}
+
+/* Таймер + кнопка «Найти бадди» в один ряд */
+.home-meeting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.home-meeting-row .countdown { text-align: left; }
+
+/* Кнопка «Попасть на разбор» */
+.home-review-btn {
+  width: 100%;
+  border: 1px solid var(--gold);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(217, 185, 116, 0.20), rgba(217, 185, 116, 0.06));
+  color: var(--gold);
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: 0.02em;
+  padding: 15px;
+  cursor: pointer;
+}
+.home-review-btn:active { transform: scale(0.99); opacity: 0.9; }

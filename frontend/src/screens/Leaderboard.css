@@ -1,0 +1,145 @@
+.leaderboard { min-height: 100%; background: var(--bg); }
+
+.lb-body {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 6px 16px 96px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.lb-back {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  color: var(--gold);
+  font-size: 1.05rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px;
+}
+
+.lb-empty { color: var(--text-dim); text-align: center; padding: 32px 12px; }
+
+/* ── Подиум ── */
+.lb-podium {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  align-items: end;
+  gap: 8px;
+  padding: 8px 0 4px;
+}
+.lb-pod {
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  color: var(--text);
+}
+.lb-pod-empty { visibility: hidden; }
+.lb-pod-ava {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  overflow: visible;
+  background: var(--card-2);
+  border: 2px solid var(--border, rgba(255,255,255,0.1));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: var(--gold);
+}
+.lb-pod-ava img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+/* Первое место — крупнее, золотое кольцо */
+.lb-pod-1 .lb-pod-ava {
+  width: 84px;
+  height: 84px;
+  border-color: var(--gold);
+  box-shadow: 0 0 0 4px rgba(217, 185, 116, 0.12);
+}
+.lb-pod-medal {
+  position: absolute;
+  bottom: -6px;
+  right: -4px;
+  font-size: 22px;
+  line-height: 1;
+}
+.lb-pod-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: center;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lb-pod-1 .lb-pod-name { font-size: 1rem; }
+.lb-pod-count { font-size: 0.8rem; color: var(--gold); font-weight: 700; }
+.lb-pod-count span { color: var(--text-dim); font-weight: 400; }
+.lb-pod-stars { max-width: 120px; }
+.lb-pod-stars .stars { justify-content: center; }
+
+/* ── Список ── */
+.lb-list { display: flex; flex-direction: column; gap: 10px; }
+.lb-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  background: var(--card);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 14px;
+  padding: 12px 14px;
+  color: var(--text);
+  cursor: pointer;
+}
+.lb-row:active { opacity: 0.85; }
+.lb-rank {
+  width: 30px;
+  flex-shrink: 0;
+  text-align: center;
+  font-weight: 700;
+  color: var(--text-dim);
+  font-size: 1rem;
+}
+.lb-ava {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--card-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: var(--gold);
+  font-size: 0.9rem;
+}
+.lb-ava img { width: 100%; height: 100%; object-fit: cover; }
+.lb-info { flex: 1; min-width: 0; }
+.lb-name {
+  font-size: 1.02rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lb-sub { font-size: 0.82rem; color: var(--text-dim); margin-top: 2px; }
+.lb-count {
+  flex-shrink: 0;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.3rem;
+  color: var(--gold);
+  min-width: 28px;
+  text-align: right;
+}

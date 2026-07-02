@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+.env.local
+*.log
+.DS_Store
+
+# Локальное файловое хранилище (fallback; в проде — Supabase)
+server/data/

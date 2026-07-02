@@ -1,0 +1,63 @@
+.admin { min-height: 100%; background: var(--bg); }
+.ad-body {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 6px 16px 96px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ad-back {
+  align-self: flex-start;
+  background: none; border: none;
+  color: var(--gold); font-size: 1.05rem; font-weight: 600; cursor: pointer; padding: 2px;
+}
+.ad-title { font-family: var(--font-display); font-size: 1.2rem; font-weight: 700; margin: 2px 2px; }
+.ad-empty { color: var(--text-dim); text-align: center; padding: 24px; }
+.ad-msg { color: var(--gold); font-size: 0.9rem; }
+
+/* Список участников */
+.ad-user {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+  background: var(--card); border: 1px solid rgba(255,255,255,0.05); border-radius: 14px;
+  padding: 12px 14px; color: var(--text); cursor: pointer;
+}
+.ad-user-ava {
+  width: 40px; height: 40px; border-radius: 50%; overflow: hidden; flex-shrink: 0;
+  background: var(--card-2); display: flex; align-items: center; justify-content: center;
+  color: var(--gold); font-weight: 700; font-size: 0.85rem;
+}
+.ad-user-ava img { width: 100%; height: 100%; object-fit: cover; }
+.ad-user-name { flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ad-user-star { color: var(--gold); font-size: 0.85rem; font-weight: 700; flex-shrink: 0; }
+.ad-chevron { color: var(--gold); font-size: 1.3rem; flex-shrink: 0; }
+
+/* Блоки редактора */
+.ad-block {
+  background: var(--card); border: 1px solid rgba(255,255,255,0.05); border-radius: 16px;
+  padding: 16px; display: flex; flex-direction: column; gap: 10px;
+}
+.ad-block-t { font-weight: 700; font-size: 1rem; }
+.ad-row { display: flex; gap: 10px; }
+.ad-input {
+  width: 90px; background: var(--card-2); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px; color: var(--text); font-size: 1rem; padding: 12px 14px; outline: none;
+}
+.ad-hint { font-size: 0.8rem; color: var(--text-muted); }
+.ad-btn {
+  border: none; border-radius: 10px; background: var(--beige); color: #1a1408;
+  font-weight: 700; font-size: 0.92rem; padding: 12px 16px; cursor: pointer;
+}
+.ad-btn-wide { width: 100%; margin-top: 4px; }
+
+/* Достижения-тумблеры */
+.ad-ach-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ad-ach {
+  display: flex; align-items: center; gap: 8px; text-align: left;
+  background: var(--card-2); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px;
+  padding: 9px 10px; color: var(--text-dim); cursor: pointer; font-size: 0.78rem;
+}
+.ad-ach.on { border-color: var(--gold-border); background: rgba(217,185,116,0.12); color: var(--text); }
+.ad-ach-i { font-size: 1rem; filter: grayscale(1) opacity(0.5); flex-shrink: 0; }
+.ad-ach.on .ad-ach-i { filter: none; }
+.ad-ach-t { line-height: 1.2; }

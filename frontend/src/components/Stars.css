@@ -1,0 +1,9 @@
+.stars {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 1px;
+  line-height: 1;
+  vertical-align: middle;
+}
+.star { color: rgba(255, 255, 255, 0.16); line-height: 1; }
+.star.on { color: var(--gold); }
