@@ -14,8 +14,6 @@ const BOT_TOKEN = process.env.BOT_TOKEN ?? ''
 const WELCOME_IMG = join(dirname(fileURLToPath(import.meta.url)), '..', 'assets', 'welcome.jpg')
 // Публичный HTTPS-адрес мини-приложения (Vercel и т.п.). Задаётся при деплое.
 const MINIAPP_URL = (process.env.MINIAPP_URL ?? '').trim()
-// Меморандум (устав). По умолчанию — страница онбординга внутри приложения.
-const MEMORANDUM_URL = (process.env.MEMORANDUM_URL ?? (MINIAPP_URL ? `${MINIAPP_URL.replace(/\/$/, '')}/onboarding.html` : '')).trim()
 
 // Канал клуба: id (@username или -100...) для публикации закреплённого приветствия.
 const CHANNEL_ID = (process.env.CHANNEL_ID ?? '').trim()
@@ -47,12 +45,10 @@ const WELCOME = [
   'Большого профита тебе! 🚀',
 ].join('\n')
 
-// Инлайн-клавиатура под приветствием. Кнопки web_app показываем только при HTTPS.
+// Инлайн-клавиатура под приветствием. web_app-кнопка входа только при HTTPS.
 function welcomeKeyboard(): unknown | undefined {
-  const rows: unknown[] = []
-  if (isHttps(MINIAPP_URL)) rows.push([{ text: '🚀 Вход в клуб', web_app: { url: MINIAPP_URL } }])
-  if (isHttps(MEMORANDUM_URL)) rows.push([{ text: '📜 Меморандум', web_app: { url: MEMORANDUM_URL } }])
-  return rows.length ? { inline_keyboard: rows } : undefined
+  if (!isHttps(MINIAPP_URL)) return undefined
+  return { inline_keyboard: [[{ text: '🚀 Вход в клуб', web_app: { url: MINIAPP_URL } }]] }
 }
 
 // Кеш file_id баннера: заливаем один раз, дальше шлём по id (не перезагружаем).
