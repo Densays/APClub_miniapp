@@ -225,7 +225,7 @@ function MemberCard({ user, catalog, onBack, onUpdate, onDelete, onLevelsChange 
 
   async function saveProfile() {
     try {
-      const patch: Record<string, unknown> = { social: form.social ?? {}, allowMessages: form.allowMessages !== false, showProfile: form.showProfile !== false }
+      const patch: Record<string, unknown> = { social: form.social ?? {}, allowMessages: form.allowMessages !== false, showProfile: form.showProfile !== false, isAdmin: form.isAdmin === true }
       for (const f of FIELDS) patch[f.key] = form[f.key] ?? ''
       onUpdate(await updateProfile(user.userId, patch)); flash('Профиль сохранён ✓')
     } catch { flash('Ошибка сохранения профиля') }
@@ -327,6 +327,7 @@ function MemberCard({ user, catalog, onBack, onUpdate, onDelete, onLevelsChange 
         <div className="toggles">
           <label className="switch"><input type="checkbox" checked={form.allowMessages !== false} onChange={(e) => set('allowMessages', e.target.checked)} /><span /> Разрешить писать сообщения</label>
           <label className="switch"><input type="checkbox" checked={form.showProfile !== false} onChange={(e) => set('showProfile', e.target.checked)} /><span /> Показывать профиль в сообществе</label>
+          <label className="switch"><input type="checkbox" checked={form.isAdmin === true} onChange={(e) => set('isAdmin', e.target.checked)} /><span /> 🔑 Администратор (доступ к админке из приложения)</label>
         </div>
         <button className="btn btn-gold wide" onClick={saveProfile}>Сохранить профиль</button>
       </div>

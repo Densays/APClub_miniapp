@@ -64,6 +64,7 @@ export type Profile = {
   coffeePins?: string[] // закреплённые в «Избранных» (максимум 3, наверху списка)
   coffeeLikeAt?: Record<string, number> // когда отправлен запрос (для недельного лимита 5)
   createdBy?: 'admin' | 'telegram' // как заведён профиль (ручное создание в админке / вход из Telegram)
+  isAdmin?: boolean // назначен админом из веб-панели → доступ к админке из мобильного приложения
   // Активность (трекинг запусков приложения) — заполняется сервером, не пользователем:
   firstSeenAt?: number // первый запуск
   lastSeenAt?: number // последний запуск
@@ -246,6 +247,7 @@ export function sanitizeAdminPatch(input: unknown): Partial<Profile> {
         .filter((x): x is string => typeof x === 'string')
         .slice(0, 100)
     }
+    if (typeof obj.isAdmin === 'boolean') out.isAdmin = obj.isAdmin
     // Прогресс по ролям: { roleId: тир 0..5 }. Тир 5 даёт звезду.
     if (obj.roleTiers && typeof obj.roleTiers === 'object' && !Array.isArray(obj.roleTiers)) {
       const src = obj.roleTiers as Record<string, unknown>

@@ -129,7 +129,7 @@ app.get('/api/catalog', ah(async (_req, res) => {
 
 // Сохранение каталога достижений (админ, раздел «Геймификация»).
 app.put('/api/admin/catalog', ah(async (req, res) => {
-  if (!requireAdmin(req, res)) return
+  if (!(await requireAdmin(req, res))) return
   const body = (req.body ?? {}) as Record<string, unknown>
   const current = await loadCatalog()
   // Достижения обновляем только если пришли (иначе сохраняем текущие — чтобы
@@ -168,6 +168,12 @@ function resolveUser(req: express.Request): TelegramUser | null {
 function isAdmin(user: TelegramUser): boolean {
   return ADMIN_IDS.includes(String(user.id))
 }
+// Админ = в ADMIN_IDS (env) ИЛИ флаг isAdmin в профиле (назначен из веб-админки).
+async function userIsAdmin(user: TelegramUser): Promise<boolean> {
+  if (isAdmin(user)) return true
+  const p = await store.get(String(user.id))
+  return p?.isAdmin === true
+}
 
 // Токен браузерной админки из заголовка "x-admin-token".
 function getAdminToken(req: express.Request): string {
@@ -184,16 +190,16 @@ function safeEqual(a: string, b: string): boolean {
 
 // Запрос имеет админ-права, если: (а) валидный токен браузерной админки,
 // либо (б) авторизованный Telegram-пользователь входит в ADMIN_IDS.
-function isAdminRequest(req: express.Request): boolean {
+async function isAdminRequest(req: express.Request): Promise<boolean> {
   const token = getAdminToken(req)
   if (ADMIN_PASSWORD && token && safeEqual(token, ADMIN_PASSWORD)) return true
   const user = resolveUser(req)
-  return user ? isAdmin(user) : false
+  return user ? userIsAdmin(user) : false
 }
 
 // Гард для админ-роутов: 401, если запрос не админский.
-function requireAdmin(req: express.Request, res: express.Response): boolean {
-  if (isAdminRequest(req)) return true
+async function requireAdmin(req: express.Request, res: express.Response): Promise<boolean> {
+  if (await isAdminRequest(req)) return true
   res.status(401).json({ ok: false, error: 'Admin auth required' })
   return false
 }
@@ -309,7 +315,7 @@ app.get('/api/profile/me', ah(async (req, res) => {
     registered: Boolean(profile.registeredAt),
     unlock: computeUnlock(profile, total),
     access: computeAccess(profile),
-    isAdmin: isAdmin(user),
+    isAdmin: await userIsAdmin(user),
   })
 }))
 
@@ -573,9 +579,9 @@ app.post('/api/admin/login', (req, res) => {
 })
 
 // Проверка валидности сохранённого токена (для авто-логина админки).
-app.get('/api/admin/check', (req, res) => {
-  res.json({ ok: isAdminRequest(req) })
-})
+app.get('/api/admin/check', ah(async (req, res) => {
+  res.json({ ok: await isAdminRequest(req) })
+}))
 
 // Бэкофилл @username через бота для тех участников, у кого его ещё нет (в базе
 // только числовой tg-id). Нужен для НАДЁЖНОЙ ссылки на директ в админке
@@ -601,7 +607,7 @@ async function backfillUsernames(members: Profile[]): Promise<void> {
 
 // Список ВСЕХ профилей (включая скрытые) — для админки.
 app.get('/api/admin/profiles', ah(async (req, res) => {
-  if (!requireAdmin(req, res)) return
+  if (!(await requireAdmin(req, res))) return
   const all = onlyMembers(await store.list())
   await backfillUsernames(all)
   const total = (await getLevels()).length
@@ -613,7 +619,7 @@ app.get('/api/admin/profiles', ah(async (req, res) => {
 // профиль сам «подхватится» при первом входе этого пользователя; иначе даём
 // синтетический id (m<timestamp>), Telegram-привязка появится позже.
 app.post('/api/admin/profile', ah(async (req, res) => {
-  if (!requireAdmin(req, res)) return
+  if (!(await requireAdmin(req, res))) return
   const body = (req.body ?? {}) as Record<string, unknown>
   let id = typeof body.userId === 'string' ? body.userId.trim() : ''
   if (!id) id = `m${Date.now()}`
@@ -628,14 +634,14 @@ app.post('/api/admin/profile', ah(async (req, res) => {
 
 // Удаление профиля (напр., чистка демо-резидентов).
 app.delete('/api/admin/profile/:id', ah(async (req, res) => {
-  if (!requireAdmin(req, res)) return
+  if (!(await requireAdmin(req, res))) return
   await store.remove(String(req.params.id))
   res.json({ ok: true })
 }))
 
 // Редактирование любого профиля (поля, прогресс, достижения).
 app.put('/api/admin/profile/:id', ah(async (req, res) => {
-  if (!requireAdmin(req, res)) return
+  if (!(await requireAdmin(req, res))) return
   // Админ может править обычные поля + управлять прогрессом.
   const patch = sanitizeAdminPatch(req.body)
   // Абсолютная установка этапа: {"setMonth": 6} — «установить 6 месяцев».
@@ -680,7 +686,7 @@ app.get('/api/showcase', ah(async (_req, res) => {
 
 // Сохранение перков витрины (админ).
 app.put('/api/admin/showcase', ah(async (req, res) => {
-  if (!requireAdmin(req, res)) return
+  if (!(await requireAdmin(req, res))) return
   const perks = sanitizePerks((req.body as Record<string, unknown>)?.perks)
   await store.upsert(SHOWCASE_KEY, { perks } as unknown as Partial<Profile>)
   res.json({ ok: true, perks })
@@ -701,11 +707,11 @@ function sanitizeResources(input: unknown): string[] {
     .slice(0, 100)
 }
 app.get('/api/admin/resources', ah(async (req, res) => {
-  if (!requireAdmin(req, res)) return
+  if (!(await requireAdmin(req, res))) return
   res.json({ ok: true, resources: await loadResources() })
 }))
 app.put('/api/admin/resources', ah(async (req, res) => {
-  if (!requireAdmin(req, res)) return
+  if (!(await requireAdmin(req, res))) return
   const resources = sanitizeResources((req.body as Record<string, unknown>)?.resources)
   await store.upsert(RESOURCES_KEY, { list: resources } as unknown as Partial<Profile>)
   res.json({ ok: true, resources })
@@ -726,11 +732,11 @@ function sanitizeEmails(input: unknown): string[] {
     .slice(0, 5000)
 }
 app.get('/api/admin/allowlist', ah(async (req, res) => {
-  if (!requireAdmin(req, res)) return
+  if (!(await requireAdmin(req, res))) return
   res.json({ ok: true, emails: await loadAllowlist() })
 }))
 app.put('/api/admin/allowlist', ah(async (req, res) => {
-  if (!requireAdmin(req, res)) return
+  if (!(await requireAdmin(req, res))) return
   const emails = sanitizeEmails((req.body as Record<string, unknown>)?.emails)
   await store.upsert(ALLOWLIST_KEY, { emails } as unknown as Partial<Profile>)
   res.json({ ok: true, emails })
@@ -741,7 +747,7 @@ const EVENT_IDS = new Set(EVENT_DEFS.map((d) => d.id))
 
 // Конфиг + ближайшие события + число получателей (для раздела «Уведомления»).
 app.get('/api/admin/notifications', ah(async (req, res) => {
-  if (!requireAdmin(req, res)) return
+  if (!(await requireAdmin(req, res))) return
   const [config, upcoming, recs] = await Promise.all([
     loadNotifConfig(), upcomingEvents(7), notifRecipients(),
   ])
@@ -757,14 +763,14 @@ app.get('/api/admin/notifications', ah(async (req, res) => {
 
 // Сохранить настройки (рубильник, шаблоны, час отправки).
 app.put('/api/admin/notifications', ah(async (req, res) => {
-  if (!requireAdmin(req, res)) return
+  if (!(await requireAdmin(req, res))) return
   const config = await updateNotifConfig(req.body)
   res.json({ ok: true, config })
 }))
 
 // Ручная отправка анонса события (гибрид-режим).
 app.post('/api/admin/notifications/send', ah(async (req, res) => {
-  if (!requireAdmin(req, res)) return
+  if (!(await requireAdmin(req, res))) return
   const body = (req.body ?? {}) as { eventId?: string; dateKey?: string; force?: boolean; offset?: number }
   if (!body.eventId || !EVENT_IDS.has(body.eventId as EventId)) {
     return res.status(400).json({ ok: false, error: 'bad_event' })
@@ -780,7 +786,7 @@ app.post('/api/admin/notifications/send', ah(async (req, res) => {
 // Произвольное уведомление — рассылка всем резидентам (текст + опц. картинка).
 // Резюмируемо: offset позволяет продолжить длинную рассылку (клиент шлёт в цикле).
 app.post('/api/admin/notifications/send-custom', ah(async (req, res) => {
-  if (!requireAdmin(req, res)) return
+  if (!(await requireAdmin(req, res))) return
   const body = (req.body ?? {}) as { text?: string; image?: string; offset?: number }
   const offset = typeof body.offset === 'number' ? body.offset : 0
   const report = await sendNotifCustom(String(body.text ?? ''), body.image, offset)
@@ -789,13 +795,13 @@ app.post('/api/admin/notifications/send-custom', ah(async (req, res) => {
 
 // Статус бота в канале (админ, права постить/закреплять).
 app.get('/api/admin/channel', ah(async (req, res) => {
-  if (!requireAdmin(req, res)) return
+  if (!(await requireAdmin(req, res))) return
   res.json({ ok: true, status: await channelStatus() })
 }))
 
 // Опубликовать приветствие в канал и закрепить (админ).
 app.post('/api/admin/channel/publish', ah(async (req, res) => {
-  if (!requireAdmin(req, res)) return
+  if (!(await requireAdmin(req, res))) return
   const result = await publishChannelEntry()
   res.json(result)
 }))
@@ -809,7 +815,7 @@ app.post('/api/telegram/webhook', ah(async (req, res) => {
 
 // Установить webhook на указанный URL (админ). Вызывается один раз после деплоя.
 app.post('/api/admin/bot/webhook', ah(async (req, res) => {
-  if (!requireAdmin(req, res)) return
+  if (!(await requireAdmin(req, res))) return
   const url = String((req.body as { url?: string })?.url ?? '').trim()
   if (!/^https:\/\/.+/.test(url)) return res.status(400).json({ ok: false, error: 'bad_url' })
   res.json(await setWebhook(url))
@@ -827,7 +833,7 @@ app.all('/api/cron/notify', ah(async (req, res) => {
 
 // Тестовое сообщение на указанный chat_id (проверка бота).
 app.post('/api/admin/notifications/test', ah(async (req, res) => {
-  if (!requireAdmin(req, res)) return
+  if (!(await requireAdmin(req, res))) return
   const body = (req.body ?? {}) as { chatId?: string | number; text?: string; image?: string }
   if (!body.chatId) return res.status(400).json({ ok: false, error: 'no_chat_id' })
   const result = await sendNotifTest(String(body.chatId), body.text, body.image)
@@ -875,7 +881,7 @@ app.post('/api/launch', ah(async (req, res) => {
 
 // Агрегированная статистика для дашборда (админ).
 app.get('/api/admin/stats', ah(async (req, res) => {
-  if (!requireAdmin(req, res)) return
+  if (!(await requireAdmin(req, res))) return
   const now = Date.now()
   const members = onlyMembers(await store.list())
   const total = members.length

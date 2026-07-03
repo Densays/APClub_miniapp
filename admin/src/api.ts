@@ -57,6 +57,7 @@ export type Profile = {
   accessUntil?: number
   billingPeriod?: 'monthly' | 'quarterly' | 'semiannual' | 'annual'
   createdBy?: 'admin' | 'telegram'
+  isAdmin?: boolean
   updatedAt?: number
   unlock?: Unlock
   access?: Access
