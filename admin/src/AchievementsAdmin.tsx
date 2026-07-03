@@ -4,7 +4,7 @@ import { getCatalog, saveCatalog, type Achievement } from './api'
 // Редактор каталога достижений (раздел «Геймификация» → Достижения).
 // Добавление / правка / удаление определений достижений. Изменения публикуются
 // в БД и сразу подхватываются админкой и мини-приложением.
-export default function AchievementsAdmin({ onSaved }: { onSaved?: (items: Achievement[]) => void }) {
+export default function AchievementsAdmin({ onSaved, only }: { onSaved?: (items: Achievement[]) => void; only?: 'money' | 'role' }) {
   const [items, setItems] = useState<Achievement[] | null>(null)
   const [msg, setMsg] = useState('')
   const [dirty, setDirty] = useState(false)
@@ -30,17 +30,20 @@ export default function AchievementsAdmin({ onSaved }: { onSaved?: (items: Achie
     } catch { setMsg('Ошибка сохранения') }
   }
 
-  const groups: { key: 'money' | 'role'; title: string }[] = [
+  const ALL_GROUPS: { key: 'money' | 'role'; title: string }[] = [
     { key: 'money', title: 'За деньги / трейдинг' },
     { key: 'role', title: 'Роли в клубе' },
   ]
+  const groups = ALL_GROUPS.filter((g) => !only || g.key === only)
+  const pageTitle = only === 'role' ? 'Роли в клубе' : only === 'money' ? 'Достижения' : 'Достижения'
+  const shownCount = (items ?? []).filter((a) => !only || a.group === only).length
 
   return (
     <div className="page">
       <div className="page-head">
         <div>
-          <h1 className="page-title">Достижения</h1>
-          <div className="page-sub">Каталог достижений клуба · {items?.length ?? 0} шт</div>
+          <h1 className="page-title">{pageTitle}</h1>
+          <div className="page-sub">{only === 'role' ? 'Роли резидентов клуба' : 'Каталог достижений клуба'} · {shownCount} шт</div>
         </div>
         <button className="btn btn-gold" disabled={!dirty} onClick={save}>Сохранить и опубликовать</button>
       </div>

@@ -85,7 +85,8 @@ function Shell({ catalog, theme, onToggleTheme, onCatalogChange, onLogout }: {
       case 'members': return <Members catalog={catalog} openId={openMemberId} onConsumedOpen={() => setOpenMemberId(null)} />
       case 'leaders': return <Leaders onOpenMember={openMember} />
       case 'showcase': return <ShowcaseAdmin />
-      case 'achievements': return <AchievementsAdmin onSaved={onCatalogChange} />
+      case 'achievements': return <AchievementsAdmin only="money" onSaved={onCatalogChange} />
+      case 'roles': return <AchievementsAdmin only="role" onSaved={onCatalogChange} />
       case 'notifications': return <Notifications />
       default: return <Stub title={LABELS[section] ?? 'Раздел'} />
     }

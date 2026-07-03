@@ -16,6 +16,7 @@ export const NAV: NavGroup[] = [
   ] },
   { title: 'Геймификация', items: [
     { key: 'achievements', label: 'Достижения', icon: 'tasks', active: true },
+    { key: 'roles', label: 'Роли', icon: 'users', active: true },
     { key: 'showcase', label: 'Витрина клуба', icon: 'gift', active: true },
   ] },
   { title: 'Контент', items: [
