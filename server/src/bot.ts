@@ -49,7 +49,7 @@ const WELCOME = [
 // Инлайн-клавиатура под приветствием. web_app-кнопка входа только при HTTPS.
 function welcomeKeyboard(): unknown | undefined {
   if (!isHttps(MINIAPP_URL)) return undefined
-  return { inline_keyboard: [[{ text: '🚀 Вход в клуб', web_app: { url: MINIAPP_URL } }]] }
+  return { inline_keyboard: [[{ text: '🔓 Вход в клуб', web_app: { url: MINIAPP_URL } }]] }
 }
 
 // Кеш file_id баннера: заливаем один раз, дальше шлём по id (не перезагружаем).
