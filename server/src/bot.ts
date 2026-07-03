@@ -175,6 +175,20 @@ function channelKeyboard(): unknown | undefined {
   return { inline_keyboard: [[{ text: '🚀 Вход в клуб', url: MINIAPP_LINK }]] }
 }
 
+// Достаёт @username пользователя через getChat. Работает, если бот уже
+// переписывался с пользователем (тот нажимал /start). Нужен для НАДЁЖНОЙ ссылки
+// на директ в админке: tg://user?id=… часто открывает «Избранное», а
+// https://t.me/<username> ведёт прямо в чат.
+export async function fetchUsername(userId: string): Promise<string | null> {
+  if (!BOT_TOKEN) return null
+  try {
+    const r = await fetch(TG('getChat') + `?chat_id=${encodeURIComponent(userId)}`)
+    const d = (await r.json().catch(() => ({}))) as { ok?: boolean; result?: { username?: string } }
+    if (d.ok && d.result?.username) return String(d.result.username)
+  } catch { /* сеть/недоступен */ }
+  return null
+}
+
 // id самого бота (для проверки его прав в канале) — кешируем через getMe.
 let botIdCache: number | null = null
 async function getBotId(): Promise<number | null> {

@@ -19,7 +19,7 @@ import {
   EVENT_DEFS,
   type EventId,
 } from './notifications.ts'
-import { startBot, channelStatus, publishChannelEntry, handleUpdate, setWebhook } from './bot.ts'
+import { startBot, channelStatus, publishChannelEntry, handleUpdate, setWebhook, fetchUsername } from './bot.ts'
 
 const app = express()
 const PORT = Number(process.env.PORT) || 3000
@@ -360,10 +360,33 @@ app.get('/api/admin/check', (req, res) => {
   res.json({ ok: isAdminRequest(req) })
 })
 
+// Бэкофилл @username через бота для тех участников, у кого его ещё нет (в базе
+// только числовой tg-id). Нужен для НАДЁЖНОЙ ссылки на директ в админке
+// (tg://user?id=… открывает «Избранное»; https://t.me/<username> — прямо в чат).
+// attempted — чтобы в рамках инстанса не дёргать getChat повторно для тех, у кого
+// username в Telegram реально нет. Найденное сразу сохраняем в профиль.
+const usernameAttempted = new Set<string>()
+async function backfillUsernames(members: Profile[]): Promise<void> {
+  const targets = members.filter(
+    (m) => !m.username && /^\d+$/.test(m.userId) && !usernameAttempted.has(m.userId),
+  )
+  await Promise.all(
+    targets.map(async (m) => {
+      usernameAttempted.add(m.userId)
+      const uname = await fetchUsername(m.userId)
+      if (uname) {
+        m.username = uname // мутируем объект списка — попадёт в ответ сразу
+        await store.upsert(m.userId, { username: uname })
+      }
+    }),
+  )
+}
+
 // Список ВСЕХ профилей (включая скрытые) — для админки.
 app.get('/api/admin/profiles', ah(async (req, res) => {
   if (!requireAdmin(req, res)) return
   const all = onlyMembers(await store.list())
+  await backfillUsernames(all)
   const total = (await getLevels()).length
   const enriched = all.map((p) => ({ ...p, unlock: computeUnlock(p, total), access: computeAccess(p) }))
   res.json({ ok: true, profiles: enriched })
