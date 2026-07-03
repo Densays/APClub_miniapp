@@ -57,7 +57,7 @@ export default function Leaders({ onOpenMember }: { onOpenMember?: (id: string) 
                 </span>
                 <span className="td-col"><b className="gold">★ {stars(p)}</b></span>
                 {onOpenMember && (
-                  <button className="btn sm btn-ghost lead-open" onClick={() => onOpenMember(p.userId)}>Перейти к участнику</button>
+                  <button className="btn sm btn-ghost lead-open" onClick={() => onOpenMember(p.userId)}>Перейти</button>
                 )}
               </div>
             ))}

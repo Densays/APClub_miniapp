@@ -311,3 +311,7 @@ textarea.input { resize: vertical; }
 .pay-days.red { color: var(--danger); }
 .pay-danger { color: var(--danger); font-weight: 700; }
 .lead-open { margin-left: 10px; }
+
+/* Строка лидера с кнопкой «Перейти» — даём кнопке свою колонку, текст не режется */
+.lead-row { grid-template-columns: 40px 1fr auto auto; align-items: center; }
+.lead-open { white-space: nowrap; width: auto; flex: none; padding: 6px 14px; }
