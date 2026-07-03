@@ -9,11 +9,12 @@ import MemberProfile from './screens/MemberProfile'
 import Achievements from './screens/Achievements'
 import Leaderboard from './screens/Leaderboard'
 import Buddy from './screens/Buddy'
+import Networking from './screens/Networking'
 import Showcase from './screens/Showcase'
 import Admin from './screens/Admin'
 import BottomNav from './components/BottomNav'
 
-type Screen = 'home' | 'profile' | 'edit' | 'community' | 'member' | 'achievements' | 'leaderboard' | 'buddy' | 'showcase' | 'admin'
+type Screen = 'home' | 'profile' | 'edit' | 'community' | 'member' | 'achievements' | 'leaderboard' | 'buddy' | 'networking' | 'showcase' | 'admin'
 
 export default function App() {
   const [tab, setTab] = useState('home')
@@ -101,6 +102,9 @@ export default function App() {
         />
       )
     }
+    if (screen === 'networking') {
+      return <Networking onOpenMember={(id) => openMember(id, 'networking')} />
+    }
     return (
       <Home
         onOpenOnboarding={() => { window.location.href = '/onboarding.html' }}
@@ -124,7 +128,7 @@ export default function App() {
         active={tab}
         onSelect={(id) => {
           setTab(id)
-          setScreen(id === 'community' ? 'community' : 'home')
+          setScreen(id === 'community' ? 'community' : id === 'networking' ? 'networking' : 'home')
         }}
       />
     </>

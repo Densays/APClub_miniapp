@@ -319,6 +319,21 @@ export async function saveResources(resources: string[]): Promise<string[]> {
   return ((await r.json()).resources as string[]) ?? []
 }
 
+// ── Список допущенных email (гейт входа) ─────────────────────────────────────
+export async function getAllowlist(): Promise<string[]> {
+  const r = await fetch(`${API_BASE}/api/admin/allowlist`, { headers: headers() })
+  if (r.status === 401) throw new Error('unauth')
+  if (!r.ok) throw new Error(`Список почт не загрузился (${r.status})`)
+  return ((await r.json()).emails as string[]) ?? []
+}
+export async function saveAllowlist(emails: string[]): Promise<string[]> {
+  const r = await fetch(`${API_BASE}/api/admin/allowlist`, {
+    method: 'PUT', headers: headers(), body: JSON.stringify({ emails }),
+  })
+  if (!r.ok) throw new Error(`Список почт не сохранился (${r.status})`)
+  return ((await r.json()).emails as string[]) ?? []
+}
+
 export async function getShowcase(): Promise<Perk[]> {
   const r = await fetch(`${API_BASE}/api/showcase`)
   if (!r.ok) throw new Error(`Витрина не загрузилась (${r.status})`)

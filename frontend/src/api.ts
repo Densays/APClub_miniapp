@@ -32,6 +32,7 @@ export type ProfileData = {
   showProfile?: boolean
   achievements?: string[]
   roleTiers?: Record<string, number>
+  unlock?: Unlock
 }
 
 // Сырая строка initData для подписи на сервере. Вне Telegram — 'dev'
@@ -105,6 +106,26 @@ export async function getProfiles(): Promise<ProfileData[]> {
   if (!r.ok) throw new Error(`profiles load failed: ${r.status}`)
   const data = await r.json()
   return (data.profiles as ProfileData[]) ?? []
+}
+
+// ── Нетворкинг: рандом-кофе (тиндер-свайпы) ──────────────────────────────────
+export async function getCoffeeCandidates(): Promise<ProfileData[]> {
+  const r = await fetch(`${API_BASE}/api/coffee/candidates`, { headers: authHeaders() })
+  if (!r.ok) throw new Error(`coffee candidates failed: ${r.status}`)
+  return ((await r.json()).candidates as ProfileData[]) ?? []
+}
+export async function coffeeSwipe(targetId: string, like: boolean): Promise<{ matched: boolean; target: ProfileData | null }> {
+  const r = await fetch(`${API_BASE}/api/coffee/swipe`, {
+    method: 'POST', headers: authHeaders(), body: JSON.stringify({ targetId, like }),
+  })
+  if (!r.ok) throw new Error(`coffee swipe failed: ${r.status}`)
+  const d = await r.json()
+  return { matched: Boolean(d.matched), target: (d.target as ProfileData) ?? null }
+}
+export async function getCoffeeMatches(): Promise<ProfileData[]> {
+  const r = await fetch(`${API_BASE}/api/coffee/matches`, { headers: authHeaders() })
+  if (!r.ok) throw new Error(`coffee matches failed: ${r.status}`)
+  return ((await r.json()).matches as ProfileData[]) ?? []
 }
 
 export type BuddyResult = { buddy: ProfileData | null; month: string; chosen?: boolean; alreadyChosen?: boolean; empty?: boolean }

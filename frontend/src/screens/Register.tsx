@@ -64,7 +64,13 @@ export default function Register({ initial, onDone }: {
       onDone(profile)
     } catch (e) {
       const m = (e as Error).message
-      setErr(m === 'bad_email' ? 'Проверь адрес почты' : m === 'name_required' ? 'Укажи имя и фамилию' : 'Не удалось сохранить. Попробуй ещё раз')
+      const errs: Record<string, string> = {
+        bad_email: 'Проверь адрес почты',
+        name_required: 'Укажи имя и фамилию',
+        email_not_allowed: 'Этой почты нет в списке доступа клуба. Обратись к администратору.',
+        email_taken: 'Эта почта уже привязана к другому аккаунту.',
+      }
+      setErr(errs[m] ?? 'Не удалось сохранить. Попробуй ещё раз')
     } finally { setBusy(false) }
   }
 

@@ -5,7 +5,7 @@ type Item = { id: string; label: string; icon: string }
 const ITEMS: Item[] = [
   { id: 'home', label: 'Главная', icon: '🏠' },
   { id: 'community', label: 'Сообщество', icon: '👥' },
-  { id: 'favorites', label: 'Избранное', icon: '⭐' },
+  { id: 'networking', label: 'Нетворкинг', icon: '☕' },
 ]
 
 export default function BottomNav({

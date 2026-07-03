@@ -3,6 +3,8 @@ import './Community.css'
 import Header from '../components/Header'
 import { getProfiles } from '../api'
 import type { ProfileData } from '../api'
+import { useCatalog } from '../catalog'
+import { computeStars } from '../stars'
 
 function PinIcon() {
   return (
@@ -20,6 +22,12 @@ function initialsOf(p: ProfileData) {
 export default function Community({ onOpenMember }: { onOpenMember?: (id: string) => void }) {
   const [members, setMembers] = useState<ProfileData[] | null>(null)
   const [error, setError] = useState(false)
+  const catalog = useCatalog()
+  // Текущий статус в клубе = название уровня по прогрессу разблокировки.
+  const statusOf = (m: ProfileData) => {
+    const cur = m.unlock?.current ?? 0
+    return cur > 0 ? catalog.levels[cur - 1] : ''
+  }
 
   useEffect(() => {
     let alive = true
@@ -50,6 +58,8 @@ export default function Community({ onOpenMember }: { onOpenMember?: (id: string
         {members?.map((m) => {
           const name = `${m.firstName ?? ''} ${m.lastName ?? ''}`.trim() || 'Участник'
           const subtitle = m.occupation || m.about || ''
+          const status = statusOf(m)
+          const stars = computeStars(m, catalog.achievements)
           return (
             <button
               key={m.userId}
@@ -61,6 +71,10 @@ export default function Community({ onOpenMember }: { onOpenMember?: (id: string
               </div>
               <div className="cm-info">
                 <div className="cm-name">{name}</div>
+                <div className="cm-meta">
+                  {status && <span className="cm-status">{status}</span>}
+                  <span className="cm-stars">★ {stars}</span>
+                </div>
                 {subtitle && <div className="cm-sub">{subtitle}</div>}
                 {m.city && (
                   <div className="cm-city"><PinIcon /> <span>{m.city}</span></div>

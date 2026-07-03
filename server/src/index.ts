@@ -239,6 +239,7 @@ const SHOWCASE_KEY = '__showcase'
 const CATALOG_KEY = '__catalog'
 const STATS_KEY = '__stats'
 const RESOURCES_KEY = '__resources'
+const ALLOWLIST_KEY = '__allowlist' // список допущенных email (гейт входа)
 // Каталог выдаваемых ресурсов (для «Доступ к ресурсам» — выбор из списка).
 const DEFAULT_RESOURCES = ['Кабинет APClub', 'Канал SpreadHunter', 'Блок DEX', 'Групповой мастермайнд', 'Команда тестировщиков', 'Записи эфиров', 'Материалы клуба']
 
@@ -332,6 +333,21 @@ app.post('/api/profile/register', ah(async (req, res) => {
   const email = String(b.email ?? '').trim().slice(0, 200)
   if (!firstName || !lastName) return res.status(400).json({ ok: false, error: 'name_required' })
   if (!EMAIL_RE.test(email)) return res.status(400).json({ ok: false, error: 'bad_email' })
+
+  // Гейт входа по почте: (1) почта должна быть в списке допуска (если он задан);
+  // (2) почта не должна быть уже занята ДРУГИМ аккаунтом.
+  const emailNorm = email.toLowerCase()
+  const allow = await loadAllowlist()
+  if (allow.length && !allow.includes(emailNorm)) {
+    return res.status(403).json({ ok: false, error: 'email_not_allowed' })
+  }
+  const everyone = await store.list()
+  const meId = String(user.id)
+  const taken = everyone.some(
+    (p) => p.userId !== meId && !isReserved(p.userId) && normEmail(p.email) === emailNorm && p.registeredAt,
+  )
+  if (taken) return res.status(409).json({ ok: false, error: 'email_taken' })
+
   const patch: Partial<Profile> = { firstName, lastName, email, registeredAt: Date.now() }
   if (typeof b.avatar === 'string' && b.avatar) patch.avatar = b.avatar.slice(0, 3_000_000)
   const saved = await store.upsert(String(user.id), patch)
@@ -348,7 +364,10 @@ app.get('/api/profiles', ah(async (req, res) => {
   const all = onlyMembers(await store.list())
   // Показываем только тех, кто разрешил отображение (админ видит всех).
   const visible = isAdmin(user) ? all : all.filter((p) => p.showProfile !== false)
-  res.json({ ok: true, profiles: visible })
+  // Обогащаем прогрессом (для «текущего статуса в клубе» в списке Сообщества).
+  const total = (await getLevels()).length
+  const enriched = visible.map((p) => ({ ...p, unlock: computeUnlock(p, total) }))
+  res.json({ ok: true, profiles: enriched })
 }))
 
 app.get('/api/profile/:id', ah(async (req, res) => {
@@ -360,6 +379,68 @@ app.get('/api/profile/:id', ah(async (req, res) => {
     return res.status(403).json({ ok: false, error: 'Profile hidden' })
   }
   res.json({ ok: true, profile: p })
+}))
+
+// ── Нетворкинг: рандом-кофе (тиндер-свайпы) ──────────────────────────────────
+// Кандидаты для свайпа: резиденты (видимые, зарегистрированные), которых я ещё
+// не свайпал. Обогащены прогрессом (для статуса) — звёзды считает клиент.
+app.get('/api/coffee/candidates', ah(async (req, res) => {
+  const user = resolveUser(req)
+  if (!user) return res.status(401).json({ ok: false, error: 'Unauthorized' })
+  const meId = String(user.id)
+  const me = await store.get(meId)
+  const swiped = new Set<string>([...(me?.coffeeLikes ?? []), ...(me?.coffeePasses ?? []), meId])
+  const total = (await getLevels()).length
+  const cands = onlyMembers(await store.list())
+    .filter((p) => p.showProfile !== false && p.registeredAt && !swiped.has(p.userId))
+    .slice(0, 50)
+    .map((p) => ({ ...p, unlock: computeUnlock(p, total) }))
+  res.json({ ok: true, candidates: cands })
+}))
+
+// Свайп: like=true — «хочу на кофе», like=false — пропустить. Взаимный лайк = мэтч.
+app.post('/api/coffee/swipe', ah(async (req, res) => {
+  const user = resolveUser(req)
+  if (!user) return res.status(401).json({ ok: false, error: 'Unauthorized' })
+  const meId = String(user.id)
+  const body = (req.body ?? {}) as { targetId?: string; like?: boolean }
+  const targetId = String(body.targetId ?? '')
+  if (!targetId || targetId === meId || isReserved(targetId)) {
+    return res.status(400).json({ ok: false, error: 'bad_target' })
+  }
+  const me = (await store.get(meId)) ?? ({ userId: meId } as Profile)
+  const likes = new Set(me.coffeeLikes ?? [])
+  const passes = new Set(me.coffeePasses ?? [])
+  if (body.like) { likes.add(targetId); passes.delete(targetId) }
+  else { passes.add(targetId); likes.delete(targetId) }
+  await store.upsert(meId, { coffeeLikes: [...likes].slice(-1000), coffeePasses: [...passes].slice(-1000) })
+  // Мэтч: другой уже лайкнул меня.
+  let matched = false
+  let target: unknown = null
+  if (body.like) {
+    const t = await store.get(targetId)
+    if (t && (t.coffeeLikes ?? []).includes(meId)) {
+      matched = true
+      target = { ...t, unlock: computeUnlock(t, (await getLevels()).length) }
+    }
+  }
+  res.json({ ok: true, matched, target })
+}))
+
+// Мои мэтчи — резиденты, с кем взаимный лайк (для связи в TG).
+app.get('/api/coffee/matches', ah(async (req, res) => {
+  const user = resolveUser(req)
+  if (!user) return res.status(401).json({ ok: false, error: 'Unauthorized' })
+  const meId = String(user.id)
+  const me = await store.get(meId)
+  const myLikes = new Set(me?.coffeeLikes ?? [])
+  const total = (await getLevels()).length
+  const byId = new Map(onlyMembers(await store.list()).map((p) => [p.userId, p]))
+  const matches = [...myLikes]
+    .map((id) => byId.get(id))
+    .filter((t): t is Profile => !!t && (t.coffeeLikes ?? []).includes(meId))
+    .map((t) => ({ ...t, unlock: computeUnlock(t, total) }))
+  res.json({ ok: true, matches })
 }))
 
 // ── Браузерная админка (deploy в apk-lab) ────────────────────────────────────
@@ -535,6 +616,31 @@ app.put('/api/admin/resources', ah(async (req, res) => {
   const resources = sanitizeResources((req.body as Record<string, unknown>)?.resources)
   await store.upsert(RESOURCES_KEY, { list: resources } as unknown as Partial<Profile>)
   res.json({ ok: true, resources })
+}))
+
+// ── Список допущенных email (гейт входа) ─────────────────────────────────────
+const normEmail = (e: unknown) => String(e ?? '').trim().toLowerCase()
+async function loadAllowlist(): Promise<string[]> {
+  const row = (await store.get(ALLOWLIST_KEY)) as unknown as { emails?: string[] } | null
+  return Array.isArray(row?.emails) ? (row!.emails as string[]) : []
+}
+function sanitizeEmails(input: unknown): string[] {
+  if (!Array.isArray(input)) return []
+  const seen = new Set<string>()
+  return input
+    .map((x) => normEmail(x))
+    .filter((x) => EMAIL_RE.test(x) && !seen.has(x) && (seen.add(x), true))
+    .slice(0, 5000)
+}
+app.get('/api/admin/allowlist', ah(async (req, res) => {
+  if (!requireAdmin(req, res)) return
+  res.json({ ok: true, emails: await loadAllowlist() })
+}))
+app.put('/api/admin/allowlist', ah(async (req, res) => {
+  if (!requireAdmin(req, res)) return
+  const emails = sanitizeEmails((req.body as Record<string, unknown>)?.emails)
+  await store.upsert(ALLOWLIST_KEY, { emails } as unknown as Partial<Profile>)
+  res.json({ ok: true, emails })
 }))
 
 // ── Уведомления о событиях в бота (DM резидентам) ─────────────────────────────
