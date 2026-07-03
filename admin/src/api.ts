@@ -343,13 +343,13 @@ export async function saveAllowlist(emails: string[]): Promise<string[]> {
 }
 
 export type BuddyMember = { id: string; name: string; buddyId: string; buddyName: string; needsFix?: boolean }
-export type NetMatch = { aName: string; bName: string }
-export async function getAdminPairs(): Promise<{ members: BuddyMember[]; matches: NetMatch[] }> {
+export type NetMember = { id: string; name: string; sent: { name: string; matched: boolean }[] }
+export async function getAdminPairs(): Promise<{ members: BuddyMember[]; networking: NetMember[] }> {
   const r = await fetch(`${API_BASE}/api/admin/pairs`, { headers: headers() })
   if (r.status === 401) throw new Error('unauth')
   if (!r.ok) throw new Error(`Список не загрузился (${r.status})`)
   const d = await r.json()
-  return { members: d.members ?? [], matches: d.matches ?? [] }
+  return { members: d.members ?? [], networking: d.networking ?? [] }
 }
 // Изменить бадди: buddyId='' — авто, '<id>' — вручную, null — снять.
 export async function setBuddy(userId: string, buddyId: string | null): Promise<{ buddyId: string; buddyName: string; empty?: boolean }> {

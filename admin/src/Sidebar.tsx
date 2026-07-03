@@ -19,7 +19,7 @@ export const NAV: NavGroup[] = [
     { key: 'achievements', label: 'Достижения', icon: 'tasks', active: true },
     { key: 'roles', label: 'Роли', icon: 'users', active: true },
     { key: 'showcase', label: 'Витрина клуба', icon: 'gift', active: true },
-    { key: 'pairs', label: 'Бадди и пары', icon: 'referrals', active: true },
+    { key: 'pairs', label: 'Бадди', icon: 'referrals', active: true },
   ] },
   { title: 'Контент', items: [
     { key: 'materials', label: 'Материалы', icon: 'materials' },

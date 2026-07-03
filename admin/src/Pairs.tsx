@@ -1,24 +1,23 @@
 import { useEffect, useState } from 'react'
-import { getAdminPairs, setBuddy, type BuddyMember, type NetMatch } from './api'
+import { getAdminPairs, setBuddy, type BuddyMember, type NetMember } from './api'
 
 // Геймификация: вкладка «Бадди» (взаимные пары месяца, редактируемо) +
-// вкладка «Нетворкинг» (взаимные мэтчи резидентов).
+// вкладка «Нетворкинг» (по каждому резиденту — исходящие запросы и мэтчи).
 export default function Pairs() {
   const [tab, setTab] = useState<'buddy' | 'net'>('buddy')
   const [members, setMembers] = useState<BuddyMember[]>([])
-  const [matches, setMatches] = useState<NetMatch[]>([])
+  const [net, setNet] = useState<NetMember[]>([])
   const [err, setErr] = useState('')
   const [msg, setMsg] = useState('')
   const [busy, setBusy] = useState('')
 
   async function load() {
-    try { const d = await getAdminPairs(); setMembers(d.members); setMatches(d.matches) }
+    try { const d = await getAdminPairs(); setMembers(d.members); setNet(d.networking) }
     catch (e) { setErr((e as Error).message === 'unauth' ? 'Сессия истекла — войдите заново' : 'Не удалось загрузить') }
   }
   useEffect(() => { load() }, [])
 
-  // Привязка взаимная — после изменения перезагружаем весь список (у партнёра и
-  // освобождённых тоже меняется).
+  // Привязка взаимная — после изменения перезагружаем весь список.
   async function change(id: string, buddyId: string | null) {
     setBusy(id); setMsg('')
     try {
@@ -34,14 +33,14 @@ export default function Pairs() {
     <div className="page">
       <div className="page-head">
         <div>
-          <h1 className="page-title">Бадди и пары</h1>
-          <div className="page-sub">Геймификация: бадди-пары месяца и взаимные мэтчи нетворкинга</div>
+          <h1 className="page-title">Бадди</h1>
+          <div className="page-sub">Геймификация: бадди-пары месяца и нетворкинг резидентов</div>
         </div>
       </div>
 
       <div className="pairs-tabs">
         <button className={`btn${tab === 'buddy' ? ' btn-gold' : ' btn-ghost'}`} onClick={() => setTab('buddy')}>Бадди</button>
-        <button className={`btn${tab === 'net' ? ' btn-gold' : ' btn-ghost'}`} onClick={() => setTab('net')}>Нетворкинг{matches.length ? ` · ${matches.length}` : ''}</button>
+        <button className={`btn${tab === 'net' ? ' btn-gold' : ' btn-ghost'}`} onClick={() => setTab('net')}>Нетворкинг</button>
       </div>
 
       {err && <div className="err">{err}</div>}
@@ -68,10 +67,23 @@ export default function Pairs() {
 
       {tab === 'net' && (
         <div className="card">
-          <div className="card-t">Взаимные мэтчи резидентов · {matches.length}</div>
-          {matches.length === 0 && <div className="hint">Пока нет взаимных мэтчей.</div>}
-          {matches.map((p, i) => (
-            <div className="buddy-row" key={i}><b className="gold">{p.aName}</b> ↔ <b className="gold">{p.bName}</b></div>
+          <div className="hint">По каждому резиденту — исходящие запросы. <b className="gold">✓ мэтч</b> (взаимно), <span className="dim">⏳ ожидает ответа</span>.</div>
+          {net.length === 0 && <div className="hint">Нет резидентов.</div>}
+          {net.map((m) => (
+            <div className="net-row" key={m.id}>
+              <div className="net-name">{m.name}</div>
+              {m.sent.length === 0 ? (
+                <span className="dim">— запросов нет</span>
+              ) : (
+                <div className="net-sent">
+                  {m.sent.map((s, i) => (
+                    <span className={`net-chip${s.matched ? ' match' : ''}`} key={i}>
+                      {s.matched ? '✓' : '⏳'} {s.name}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
           ))}
         </div>
       )}

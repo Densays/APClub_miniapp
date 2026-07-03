@@ -1001,19 +1001,19 @@ app.get('/api/admin/pairs', ah(async (req, res) => {
       return { id: p.userId, name: buddyName(p), buddyId: b ? bid : '', buddyName: buddyName(b), needsFix }
     })
     .sort((a, b) => a.name.localeCompare(b.name))
-  // Взаимные мэтчи нетворкинга (без дублей пар)
-  const matches: { aName: string; bName: string }[] = []
-  const seen = new Set<string>()
-  for (const p of all) {
-    for (const likeId of p.coffeeLikes ?? []) {
-      const t = byId.get(likeId)
-      if (t && (t.coffeeLikes ?? []).includes(p.userId)) {
-        const key = [p.userId, likeId].sort().join(':')
-        if (!seen.has(key)) { seen.add(key); matches.push({ aName: buddyName(p), bName: buddyName(t) }) }
-      }
-    }
-  }
-  res.json({ ok: true, members, matches })
+  // Нетворкинг: по каждому резиденту — исходящие запросы со статусом (мэтч / ожидает).
+  const networking = all
+    .filter((p) => p.registeredAt)
+    .map((p) => ({
+      id: p.userId,
+      name: buddyName(p),
+      sent: (p.coffeeLikes ?? [])
+        .map((id) => byId.get(id))
+        .filter((t): t is Profile => !!t && !isReserved(t.userId))
+        .map((t) => ({ name: buddyName(t), matched: (t.coffeeLikes ?? []).includes(p.userId) })),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+  res.json({ ok: true, members, networking })
 }))
 
 // Изменить бадди — ВЗАИМНО (A↔B). buddyId '' → авто (предпочитая свободных),
