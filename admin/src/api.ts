@@ -99,6 +99,15 @@ export async function saveCatalog(achievements: Achievement[]): Promise<Achievem
   return ((await r.json()).achievements as Achievement[]) ?? []
 }
 
+// Сохранить только названия уровней (достижения на сервере сохраняются как есть).
+export async function saveLevels(levels: string[]): Promise<string[]> {
+  const r = await fetch(`${API_BASE}/api/admin/catalog`, {
+    method: 'PUT', headers: headers(), body: JSON.stringify({ levels }),
+  })
+  if (!r.ok) throw new Error(`Уровни не сохранились (${r.status})`)
+  return ((await r.json()).levels as string[]) ?? []
+}
+
 export async function getProfiles(): Promise<Profile[]> {
   const r = await fetch(`${API_BASE}/api/admin/profiles`, { headers: headers() })
   if (r.status === 401) throw new Error('unauth')
@@ -109,7 +118,12 @@ export async function getProfiles(): Promise<Profile[]> {
 
 // Мержим отдельный unlock/access из ответа в объект профиля.
 function mergeMeta(data: { profile: Profile; unlock?: Unlock; access?: Access }): Profile {
-  return { ...data.profile, unlock: data.unlock ?? data.profile.unlock, access: data.access ?? data.profile.access }
+  const merged: Profile = { ...data.profile, unlock: data.unlock ?? data.profile.unlock, access: data.access ?? data.profile.access }
+  // accessUntil в JSON отсутствует, когда доступ сделали бессрочным (undefined
+  // не сериализуется). Берём истину из access.until, иначе клиентский мерж
+  // {...prev, ...p} сохранил бы старую дату (список/дашборд не обновились бы).
+  if (data.access) merged.accessUntil = data.access.until ?? undefined
+  return merged
 }
 
 export async function updateProfile(id: string, patch: Record<string, unknown>): Promise<Profile> {

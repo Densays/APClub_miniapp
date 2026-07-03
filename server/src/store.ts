@@ -201,7 +201,7 @@ export function sanitizeAdminPatch(input: unknown): Partial<Profile> {
     const obj = input as Record<string, unknown>
     if (typeof obj.activatedAt === 'number') out.activatedAt = obj.activatedAt
     if (typeof obj.bonusMonths === 'number') {
-      out.bonusMonths = Math.max(-12, Math.min(12, Math.floor(obj.bonusMonths)))
+      out.bonusMonths = Math.max(-24, Math.min(24, Math.floor(obj.bonusMonths)))
     }
     // Срок доступа: number = timestamp, null = снять ограничение (бессрочно).
     if (obj.accessUntil === null) out.accessUntil = undefined

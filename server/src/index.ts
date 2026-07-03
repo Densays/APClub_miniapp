@@ -70,12 +70,24 @@ app.get('/api/health', (_req, res) => {
 
 // Каталог контента (ачивки + названия уровней) — общий для приложения и админки.
 // Редактируется в разделе «Геймификация»; хранится в служебной записи __catalog.
+// Кэш названий уровней — чтобы computeUnlock знал их число без лишних чтений БД.
+// Прогревается в loadCatalog, инвалидируется при сохранении каталога.
+let _levelsCache: string[] | null = null
+
 async function loadCatalog(): Promise<{ achievements: typeof ACHIEVEMENTS; levels: string[] }> {
   const row = (await store.get(CATALOG_KEY)) as unknown as { achievements?: typeof ACHIEVEMENTS; levels?: string[] } | null
+  const levels = Array.isArray(row?.levels) && row!.levels!.length ? row!.levels! : LEVELS
+  _levelsCache = levels
   return {
     achievements: Array.isArray(row?.achievements) && row!.achievements.length ? row!.achievements! : ACHIEVEMENTS,
-    levels: Array.isArray(row?.levels) && row!.levels!.length ? row!.levels! : LEVELS,
+    levels,
   }
+}
+
+// Актуальные названия уровней (из кэша или подгрузив каталог). Число = кол-во уровней.
+async function getLevels(): Promise<string[]> {
+  if (_levelsCache) return _levelsCache
+  return (await loadCatalog()).levels
 }
 
 function sanitizeAchievements(input: unknown): typeof ACHIEVEMENTS {
@@ -101,16 +113,22 @@ app.get('/api/catalog', ah(async (_req, res) => {
 app.put('/api/admin/catalog', ah(async (req, res) => {
   if (!requireAdmin(req, res)) return
   const body = (req.body ?? {}) as Record<string, unknown>
-  const achievements = sanitizeAchievements(body.achievements)
-  // id должны быть уникальны (иначе ломается выдача) — отбрасываем дубли.
-  const seen = new Set<string>()
-  const unique = achievements.filter((a) => (seen.has(a.id) ? false : (seen.add(a.id), true)))
   const current = await loadCatalog()
+  // Достижения обновляем только если пришли (иначе сохраняем текущие — чтобы
+  // сохранение одних лишь уровней не стёрло каталог достижений).
+  let achievements = current.achievements
+  if (body.achievements !== undefined) {
+    const seen = new Set<string>()
+    achievements = sanitizeAchievements(body.achievements)
+      .filter((a) => (seen.has(a.id) ? false : (seen.add(a.id), true)))
+  }
+  // Уровни: непустые строки, до 24; пустые/пробельные отбрасываем.
   const levels = Array.isArray(body.levels)
-    ? body.levels.filter((x): x is string => typeof x === 'string').map((x) => x.slice(0, 60)).slice(0, 24)
+    ? body.levels.filter((x): x is string => typeof x === 'string').map((x) => x.trim().slice(0, 60)).filter(Boolean).slice(0, 24)
     : current.levels
-  await store.upsert(CATALOG_KEY, { achievements: unique, levels } as unknown as Partial<Profile>)
-  res.json({ ok: true, achievements: unique, levels })
+  await store.upsert(CATALOG_KEY, { achievements, levels } as unknown as Partial<Profile>)
+  _levelsCache = levels.length ? levels : null // инвалидируем кэш числа уровней
+  res.json({ ok: true, achievements, levels })
 }))
 
 // Достаёт initData из заголовка "Authorization: tma <initData>"
@@ -176,12 +194,13 @@ function monthsBetween(fromMs: number, toMs: number): number {
 
 // Прогресс идёт АВТОМАТИЧЕСКИ с момента активации (elapsed месяцев) + ручная
 // корректировка админа (bonusMonths, ±). Итог ограничен 0..12.
-function computeUnlock(profile: Profile) {
+function computeUnlock(profile: Profile, total: number = TOTAL_LEVELS) {
+  const cap = Math.max(1, total)
   const activatedAt = profile.activatedAt ?? Date.now()
   const bonus = profile.bonusMonths ?? 0
   const elapsed = monthsBetween(activatedAt, Date.now())
-  const current = Math.max(0, Math.min(elapsed + bonus, TOTAL_LEVELS))
-  return { current, total: TOTAL_LEVELS, activatedAt, bonusMonths: bonus, elapsedMonths: elapsed }
+  const current = Math.max(0, Math.min(elapsed + bonus, cap))
+  return { current, total: cap, activatedAt, bonusMonths: bonus, elapsedMonths: elapsed }
 }
 
 // Доступ к приложению: если задан accessUntil и он в прошлом — доступ закрыт
@@ -264,11 +283,12 @@ app.get('/api/profile/me', ah(async (req, res) => {
     stored = await store.upsert(String(user.id), { activatedAt: Date.now() })
   }
   const profile = withDefaults(user, stored)
+  const total = (await getLevels()).length
   res.json({
     ok: true,
     profile,
     registered: Boolean(profile.registeredAt),
-    unlock: computeUnlock(profile),
+    unlock: computeUnlock(profile, total),
     access: computeAccess(profile),
     isAdmin: isAdmin(user),
   })
@@ -298,7 +318,8 @@ app.post('/api/profile/register', ah(async (req, res) => {
   if (typeof b.avatar === 'string' && b.avatar) patch.avatar = b.avatar.slice(0, 3_000_000)
   const saved = await store.upsert(String(user.id), patch)
   const profile = withDefaults(user, saved)
-  res.json({ ok: true, profile, registered: true, unlock: computeUnlock(profile), access: computeAccess(profile) })
+  const total = (await getLevels()).length
+  res.json({ ok: true, profile, registered: true, unlock: computeUnlock(profile, total), access: computeAccess(profile) })
 }))
 
 // ── Просмотр профилей других участников (общая база) ──────────────────────────
@@ -343,7 +364,8 @@ app.get('/api/admin/check', (req, res) => {
 app.get('/api/admin/profiles', ah(async (req, res) => {
   if (!requireAdmin(req, res)) return
   const all = onlyMembers(await store.list())
-  const enriched = all.map((p) => ({ ...p, unlock: computeUnlock(p), access: computeAccess(p) }))
+  const total = (await getLevels()).length
+  const enriched = all.map((p) => ({ ...p, unlock: computeUnlock(p, total), access: computeAccess(p) }))
   res.json({ ok: true, profiles: enriched })
 }))
 
@@ -360,7 +382,8 @@ app.post('/api/admin/profile', ah(async (req, res) => {
   if (exists) return res.status(409).json({ ok: false, error: 'Участник с таким id уже есть' })
   const patch = sanitizeAdminPatch(body)
   const saved = await store.upsert(id, { ...patch, activatedAt: Date.now(), createdBy: 'admin' })
-  res.json({ ok: true, profile: { ...saved, unlock: computeUnlock(saved), access: computeAccess(saved) } })
+  const total = (await getLevels()).length
+  res.json({ ok: true, profile: { ...saved, unlock: computeUnlock(saved, total), access: computeAccess(saved) } })
 }))
 
 // Удаление профиля (напр., чистка демо-резидентов).
@@ -378,15 +401,16 @@ app.put('/api/admin/profile/:id', ah(async (req, res) => {
   // Абсолютная установка этапа: {"setMonth": 6} — «установить 6 месяцев».
   // Переводим в bonusMonths относительно авто-отсчёта, чтобы прогресс дальше шёл сам.
   const body = req.body as Record<string, unknown>
+  const total = (await getLevels()).length
   if (typeof body?.setMonth === 'number') {
     const existing = await store.get(String(req.params.id))
     const activatedAt = patch.activatedAt ?? existing?.activatedAt ?? Date.now()
     const elapsed = monthsBetween(activatedAt, Date.now())
-    const target = Math.max(0, Math.min(TOTAL_LEVELS, Math.floor(body.setMonth as number)))
-    patch.bonusMonths = Math.max(-12, Math.min(12, target - elapsed))
+    const target = Math.max(0, Math.min(total, Math.floor(body.setMonth as number)))
+    patch.bonusMonths = Math.max(-24, Math.min(24, target - elapsed))
   }
   const saved = await store.upsert(String(req.params.id), patch)
-  res.json({ ok: true, profile: saved, unlock: computeUnlock(saved), access: computeAccess(saved) })
+  res.json({ ok: true, profile: saved, unlock: computeUnlock(saved, total), access: computeAccess(saved) })
 }))
 
 // ── Витрина клуба: перки, открываемые за звёзды-достижения ────────────────────

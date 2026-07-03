@@ -30,10 +30,13 @@ export default function App() {
   // новые достижения сразу были доступны в карточке участника.
   const onCatalogChange = (achievements: Achievement[]) =>
     setCatalog((c) => ({ achievements, levels: c?.levels ?? [] }))
+  // Правки названий уровней (из карточки участника) — обновляем общий каталог.
+  const onLevelsChange = (levels: string[]) =>
+    setCatalog((c) => ({ achievements: c?.achievements ?? [], levels }))
 
   if (authed === null) return <div className="center dim">Загрузка…</div>
   if (!authed) return <Login onOk={() => setAuthed(true)} />
-  return <Shell catalog={catalog} theme={theme} onToggleTheme={toggleTheme} onCatalogChange={onCatalogChange} onLogout={() => { clearToken(); setAuthed(false) }} />
+  return <Shell catalog={catalog} theme={theme} onToggleTheme={toggleTheme} onCatalogChange={onCatalogChange} onLevelsChange={onLevelsChange} onLogout={() => { clearToken(); setAuthed(false) }} />
 }
 
 // ── Вход ──────────────────────────────────────────────────────────────────────
@@ -68,9 +71,10 @@ const LABELS: Record<string, string> = Object.fromEntries(
   NAV.flatMap((g) => g.items.map((i) => [i.key, i.label])),
 )
 
-function Shell({ catalog, theme, onToggleTheme, onCatalogChange, onLogout }: {
+function Shell({ catalog, theme, onToggleTheme, onCatalogChange, onLevelsChange, onLogout }: {
   catalog: Catalog | null; theme: Theme; onToggleTheme: () => void
-  onCatalogChange: (achievements: Achievement[]) => void; onLogout: () => void
+  onCatalogChange: (achievements: Achievement[]) => void
+  onLevelsChange: (levels: string[]) => void; onLogout: () => void
 }) {
   const [section, setSection] = useState('dashboard')
   const [openMemberId, setOpenMemberId] = useState<string | null>(null)
@@ -82,7 +86,7 @@ function Shell({ catalog, theme, onToggleTheme, onCatalogChange, onLogout }: {
   function render() {
     switch (section) {
       case 'dashboard': return <Dashboard onOpenMember={openMember} />
-      case 'members': return <Members catalog={catalog} openId={openMemberId} onConsumedOpen={() => setOpenMemberId(null)} />
+      case 'members': return <Members catalog={catalog} openId={openMemberId} onConsumedOpen={() => setOpenMemberId(null)} onLevelsChange={onLevelsChange} />
       case 'leaders': return <Leaders catalog={catalog} onOpenMember={openMember} />
       case 'showcase': return <ShowcaseAdmin />
       case 'achievements': return <AchievementsAdmin only="money" onSaved={onCatalogChange} />

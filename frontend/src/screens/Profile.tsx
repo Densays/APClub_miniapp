@@ -5,6 +5,7 @@ import { mockUser, mockLevels, profileMenu, SUPPORT_URL } from '../mock'
 import { getCurrentUser } from '../tgUser'
 import { getMyProfile } from '../api'
 import type { ProfileData, Unlock } from '../api'
+import { useCatalog } from '../catalog'
 
 function SearchIcon() {
   return (
@@ -94,7 +95,12 @@ export default function Profile({
     return () => { alive = false }
   }, [])
 
-  const pct = Math.round((unlock.current / unlock.total) * 100)
+  const pct = unlock.total ? Math.round((unlock.current / unlock.total) * 100) : 0
+
+  // Названия статусов по месяцам берём из каталога (редактируются в админке);
+  // фолбэк — моки. month = индекс + 1.
+  const catalog = useCatalog()
+  const levelNames = catalog.levels.length ? catalog.levels : mockLevels.map((l) => l.name)
 
   // «Продлить подписку» → личка аккаунта поддержки (ссылка задаётся в SUPPORT_URL).
   function openSupport() {
@@ -166,12 +172,13 @@ export default function Profile({
 
         {/* Награды по месяцам (горизонтальный скролл) */}
         <div className="pf-levels">
-          {mockLevels.map((l) => {
-            const state = levelState(l.month)
+          {levelNames.map((name, i) => {
+            const month = i + 1
+            const state = levelState(month)
             return (
-            <div className="pf-level" key={l.month}>
-              <div className="pf-level-month">{l.month} месяц</div>
-              <div className="pf-level-badge">{l.name}</div>
+            <div className="pf-level" key={month}>
+              <div className="pf-level-month">{month} месяц</div>
+              <div className="pf-level-badge">{name}</div>
               <div className={`pf-level-circle${state === 'soon' ? ' is-active' : ''}${state === 'unlocked' ? ' is-done' : ''}`}>
                 {state === 'unlocked' ? <CheckIcon /> : <ClockIcon />}
               </div>

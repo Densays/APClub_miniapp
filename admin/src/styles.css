@@ -147,6 +147,18 @@ textarea.input { resize: vertical; }
 .ach.on .ach-i { filter: none; }
 .ach-t { font-size: 12.5px; line-height: 1.2; }
 
+/* Уровни (статусы по месяцам) */
+.lvl-now { align-self: center; font-size: 12.5px; color: var(--gray); margin-left: 4px; }
+.lvl-head { color: var(--gray2); font-size: 10.5px; text-transform: uppercase; letter-spacing: 1.5px; margin: 16px 0 8px; }
+.lvl-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.lvl-row { display: flex; align-items: center; gap: 8px; }
+.lvl-row.now .lvl-num { background: var(--gold); color: #000; border-color: var(--gold); }
+.lvl-row.now input { border-color: var(--gold); }
+.lvl-num { flex-shrink: 0; width: 26px; height: 26px; border-radius: 7px; border: 1px solid var(--line); background: var(--bg); color: var(--gray2); font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+.lvl-row input { flex: 1; min-width: 0; }
+.lvl-x { flex-shrink: 0; width: 26px; height: 26px; border-radius: 7px; border: 1px solid var(--line); background: var(--bg); color: var(--gray2); font-size: 16px; line-height: 1; cursor: pointer; }
+.lvl-x:hover { border-color: #b4553f; color: #d9705a; }
+
 /* Роли — прогресс по тирам 0..5 */
 .role-list { display: flex; flex-direction: column; gap: 8px; }
 .role-row { display: flex; align-items: center; gap: 10px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; }

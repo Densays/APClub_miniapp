@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   getProfiles, updateProfile, createMember, deleteProfile, fileToAvatar, getShowcase,
-  getResources, saveResources,
+  getResources, saveResources, saveLevels,
   type Profile, type Catalog, type Perk,
 } from './api'
 import { computeStars, TIER_MAX } from './stars'
@@ -25,8 +25,9 @@ function Avatar({ p, size = 40 }: { p: Profile; size?: number }) {
   )
 }
 
-export default function Members({ catalog, openId, onConsumedOpen }: {
+export default function Members({ catalog, openId, onConsumedOpen, onLevelsChange }: {
   catalog: Catalog | null; openId?: string | null; onConsumedOpen?: () => void
+  onLevelsChange?: (levels: string[]) => void
 }) {
   const [users, setUsers] = useState<Profile[] | null>(null)
   const [sel, setSel] = useState<Profile | null>(null)
@@ -69,7 +70,7 @@ export default function Members({ catalog, openId, onConsumedOpen }: {
 
   if (sel) {
     return <MemberCard key={sel.userId} user={sel} catalog={catalog}
-      onBack={() => setSel(null)} onUpdate={applyUpdate} onDelete={applyDelete} />
+      onBack={() => setSel(null)} onUpdate={applyUpdate} onDelete={applyDelete} onLevelsChange={onLevelsChange} />
   }
 
   return (
@@ -178,9 +179,10 @@ const SOCIALS: { key: keyof NonNullable<Profile['social']>; label: string }[] = 
   { key: 'web', label: 'Веб-сайт' },
 ]
 
-function MemberCard({ user, catalog, onBack, onUpdate, onDelete }: {
+function MemberCard({ user, catalog, onBack, onUpdate, onDelete, onLevelsChange }: {
   user: Profile; catalog: Catalog | null
   onBack: () => void; onUpdate: (p: Profile) => void; onDelete: (id: string) => void
+  onLevelsChange?: (levels: string[]) => void
 }) {
   const [form, setForm] = useState<Profile>({ ...user })
   const [month, setMonth] = useState<number>(user.unlock?.current ?? 0)
@@ -197,6 +199,10 @@ function MemberCard({ user, catalog, onBack, onUpdate, onDelete }: {
   const [access, setAccess] = useState<string>(dateToInput(user.accessUntil))
   const [grants, setGrants] = useState<string[]>(user.grants ?? [])
   const [period, setPeriod] = useState<Profile['billingPeriod'] | ''>(user.billingPeriod ?? '')
+  // Названия уровней (статусов) по месяцам — ОБЩИЕ для всех участников.
+  const [levels, setLevels] = useState<string[]>(catalog?.levels ?? [])
+  const [levelsDirty, setLevelsDirty] = useState(false)
+  const [savingLevels, setSavingLevels] = useState(false)
   const [resCatalog, setResCatalog] = useState<string[]>([])
   const [grantPick, setGrantPick] = useState('')
   const [newRes, setNewRes] = useState('')
@@ -222,6 +228,22 @@ function MemberCard({ user, catalog, onBack, onUpdate, onDelete }: {
       for (const f of FIELDS) patch[f.key] = form[f.key] ?? ''
       onUpdate(await updateProfile(user.userId, patch)); flash('Профиль сохранён ✓')
     } catch { flash('Ошибка сохранения профиля') }
+  }
+  // Кол-во уровней = длине списка названий (минимум 1 для установки месяца).
+  const totalLevels = Math.max(1, levels.length)
+  function editLevel(i: number, name: string) { setLevels((ls) => ls.map((l, j) => (j === i ? name : l))); setLevelsDirty(true) }
+  function addLevel() { setLevels((ls) => [...ls, `Уровень ${ls.length + 1}`]); setLevelsDirty(true) }
+  function removeLevel(i: number) { setLevels((ls) => ls.filter((_, j) => j !== i)); setLevelsDirty(true) }
+  async function saveLevelNames() {
+    const clean = levels.map((l) => l.trim()).filter(Boolean)
+    if (!clean.length) { flash('Нужен хотя бы один уровень'); return }
+    setSavingLevels(true)
+    try {
+      const saved = await saveLevels(clean)
+      setLevels(saved); setLevelsDirty(false); onLevelsChange?.(saved)
+      if (month > saved.length) setMonth(saved.length)
+      flash('Уровни сохранены ✓ — общие для всех участников')
+    } catch { flash('Ошибка сохранения уровней') } finally { setSavingLevels(false) }
   }
   async function saveMonth() {
     try { onUpdate(await updateProfile(user.userId, { setMonth: month })); flash(`Открыто месяцев: ${month} ✓`) } catch { flash('Ошибка') }
@@ -307,33 +329,56 @@ function MemberCard({ user, catalog, onBack, onUpdate, onDelete }: {
         <button className="btn btn-gold wide" onClick={saveProfile}>Сохранить профиль</button>
       </div>
 
-      {/* Прогресс + Доступ */}
-      <div className="row-cards">
-        <div className="card">
-          <div className="card-t">Прогресс разблокировки</div>
-          <div className="hint">Открыто {user.unlock?.current ?? 0}/12 · растёт автоматически, здесь — ручная установка.</div>
-          <div className="row">
-            <input className="input num" type="number" min={0} max={12} value={month} onChange={(e) => setMonth(Math.max(0, Math.min(12, Number(e.target.value))))} />
-            <button className="btn btn-gold" onClick={saveMonth}>Установить</button>
-          </div>
-          {catalog && month > 0 && catalog.levels[month - 1] && <div className="hint">Уровень: <b className="gold">{catalog.levels[month - 1]}</b></div>}
+      {/* Прогресс разблокировки + названия уровней (общие) */}
+      <div className="card">
+        <div className="card-t">Прогресс разблокировки <span className="gold">{month}/{totalLevels}</span></div>
+        <div className="hint">Растёт автоматически по месяцам с активации. Ниже — ручная установка месяца и названия статусов (ОБЩИЕ для всех участников).</div>
+        <div className="row">
+          <input className="input num" type="number" min={0} max={totalLevels}
+            value={month} onChange={(e) => setMonth(Math.max(0, Math.min(totalLevels, Number(e.target.value))))} />
+          <button className="btn btn-gold" onClick={saveMonth}>Установить месяц</button>
+          {month > 0 && levels[month - 1] && <span className="lvl-now">Сейчас: <b className="gold">{levels[month - 1]}</b></span>}
         </div>
 
-        <div className="card">
-          <div className="card-t">Срок доступа / платёж</div>
-          <div className="hint">Дата = следующий платёж; по истечении вход закрывается. Пусто = бессрочно.</div>
-          <div className="row">
-            <input className="input" type="date" value={access} onChange={(e) => setAccess(e.target.value)} />
-            <select className="input" value={period} onChange={(e) => setPeriod(e.target.value as Profile['billingPeriod'] | '')}>
-              <option value="">Период —</option>
-              {PERIODS.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
-            </select>
-            <button className="btn btn-gold" onClick={() => saveAccess(false)}>Сохранить</button>
-          </div>
-          <div className="row">
-            <button className="btn btn-ghost sm" onClick={() => saveAccess(true)}>Сделать бессрочным</button>
-            {user.access?.active === false ? <span className="badge red">доступ истёк</span> : <span className="badge green">доступ активен</span>}
-          </div>
+        <div className="lvl-head">Месяцы и статусы</div>
+        <div className="lvl-list">
+          {levels.map((name, i) => (
+            <div className={`lvl-row${i + 1 === month ? ' now' : ''}`} key={i}>
+              <span className="lvl-num">{i + 1}</span>
+              <input className="input" value={name} placeholder={`Статус ${i + 1} месяца`}
+                onChange={(e) => editLevel(i, e.target.value)} />
+              <button className="lvl-x" title="Удалить месяц" onClick={() => removeLevel(i)}>×</button>
+            </div>
+          ))}
+          {levels.length === 0 && <div className="hint">Уровней пока нет — добавь первый.</div>}
+        </div>
+        <div className="row">
+          <button className="btn btn-ghost sm" onClick={addLevel}>+ Добавить месяц</button>
+          <button className="btn btn-gold sm" disabled={!levelsDirty || savingLevels} onClick={saveLevelNames}>
+            {savingLevels ? 'Сохраняю…' : 'Сохранить уровни'}
+          </button>
+        </div>
+      </div>
+
+      {/* Срок доступа */}
+      <div className="card">
+        <div className="card-t">Срок доступа / платёж</div>
+        <div className="hint">Дата = следующий платёж; по истечении вход закрывается. Пусто = бессрочно.</div>
+        <div className="row">
+          <input className="input" type="date" value={access} onChange={(e) => setAccess(e.target.value)} />
+          <select className="input" value={period} onChange={(e) => setPeriod(e.target.value as Profile['billingPeriod'] | '')}>
+            <option value="">Период —</option>
+            {PERIODS.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
+          </select>
+          <button className="btn btn-gold" onClick={() => saveAccess(false)}>Сохранить</button>
+        </div>
+        <div className="row">
+          <button className="btn btn-ghost sm" onClick={() => saveAccess(true)}>Сделать бессрочным</button>
+          {user.access?.active === false
+            ? <span className="badge red">доступ истёк</span>
+            : user.accessUntil
+              ? <span className="badge green">активен до {dateToInput(user.accessUntil)}</span>
+              : <span className="badge green">♾ бессрочно</span>}
         </div>
       </div>
 
