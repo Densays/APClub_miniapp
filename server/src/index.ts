@@ -404,17 +404,41 @@ function coffeeQuota(me: Profile | null) {
   }
 }
 
+// Истечение исходящих запросов: неотвеченный (без взаимности) запрос живёт 24ч.
+// По истечении удаляется — слот освобождается, участник снова доступен для выбора.
+const REQUEST_TTL_MS = 24 * 60 * 60 * 1000
+// Истёк ли исходящий запрос (по таймстемпу в coffeeLikeAt отправителя): старше 24ч.
+function isRequestExpired(senderAt: Record<string, number> | undefined, targetId: string, now: number): boolean {
+  const ts = senderAt?.[targetId]
+  return typeof ts === 'number' && now - ts > REQUEST_TTL_MS
+}
+async function pruneExpiredRequests(me: Profile | null, byId: Map<string, Profile>): Promise<Profile | null> {
+  if (!me?.coffeeLikes?.length) return me
+  const now = Date.now()
+  const at = { ...(me.coffeeLikeAt ?? {}) }
+  let changed = false
+  const likes = me.coffeeLikes.filter((id) => {
+    const t = byId.get(id)
+    if (t && (t.coffeeLikes ?? []).includes(me.userId)) return true // мэтч не истекает
+    if (isRequestExpired(at, id, now)) { delete at[id]; changed = true; return false }
+    return true
+  })
+  if (!changed) return me
+  return await store.upsert(me.userId, { coffeeLikes: likes, coffeeLikeAt: at })
+}
+
 // Кандидаты: резиденты, которым я ещё НЕ отправлял запрос (пропущенные снова
-// появляются — список не заканчивается, «обновляется»). Клиент сам скрывает
-// пропущенных на время сессии.
+// появляются). Перед выдачей чистим истёкшие запросы (24ч) — освобождают слот.
 app.get('/api/coffee/candidates', ah(async (req, res) => {
   const user = resolveUser(req)
   if (!user) return res.status(401).json({ ok: false, error: 'Unauthorized' })
   const meId = String(user.id)
-  const me = await store.get(meId)
+  const all = onlyMembers(await store.list())
+  const byId = new Map(all.map((p) => [p.userId, p]))
+  const me = await pruneExpiredRequests(await store.get(meId), byId)
   const requested = new Set<string>([...(me?.coffeeLikes ?? []), meId])
   const total = (await getLevels()).length
-  const cands = onlyMembers(await store.list())
+  const cands = all
     // не запрошенные мной И не приславшие запрос мне (входящие — в отдельной вкладке)
     .filter((p) => p.showProfile !== false && p.registeredAt && !requested.has(p.userId) && !(p.coffeeLikes ?? []).includes(meId))
     .slice(0, 100)
@@ -464,9 +488,12 @@ app.get('/api/coffee/incoming', ah(async (req, res) => {
   const meId = String(user.id)
   const me = await store.get(meId)
   const myLikes = new Set(me?.coffeeLikes ?? [])
+  const now = Date.now()
   const total = (await getLevels()).length
   const incoming = onlyMembers(await store.list())
-    .filter((p) => p.userId !== meId && (p.coffeeLikes ?? []).includes(meId) && !myLikes.has(p.userId))
+    // отправил запрос мне, я ещё не ответил, и запрос не истёк (24ч)
+    .filter((p) => p.userId !== meId && (p.coffeeLikes ?? []).includes(meId) && !myLikes.has(p.userId)
+      && !isRequestExpired(p.coffeeLikeAt, meId, now))
     .map((p) => ({ ...p, unlock: computeUnlock(p, total) }))
   res.json({ ok: true, incoming })
 }))
@@ -487,10 +514,10 @@ app.get('/api/coffee/matches', ah(async (req, res) => {
   const user = resolveUser(req)
   if (!user) return res.status(401).json({ ok: false, error: 'Unauthorized' })
   const meId = String(user.id)
-  const me = await store.get(meId)
+  const byId = new Map(onlyMembers(await store.list()).map((p) => [p.userId, p]))
+  const me = await pruneExpiredRequests(await store.get(meId), byId)
   const myLikes = new Set(me?.coffeeLikes ?? [])
   const total = (await getLevels()).length
-  const byId = new Map(onlyMembers(await store.list()).map((p) => [p.userId, p]))
   const matches = [...myLikes]
     .map((id) => byId.get(id))
     .filter((t): t is Profile => !!t && (t.coffeeLikes ?? []).includes(meId))
@@ -505,11 +532,11 @@ app.get('/api/coffee/pending', ah(async (req, res) => {
   const user = resolveUser(req)
   if (!user) return res.status(401).json({ ok: false, error: 'Unauthorized' })
   const meId = String(user.id)
-  const me = await store.get(meId)
+  const byId = new Map(onlyMembers(await store.list()).map((p) => [p.userId, p]))
+  const me = await pruneExpiredRequests(await store.get(meId), byId)
   const myLikes = me?.coffeeLikes ?? []
   const pins = (me?.coffeePins ?? []).filter((id) => myLikes.includes(id))
   const total = (await getLevels()).length
-  const byId = new Map(onlyMembers(await store.list()).map((p) => [p.userId, p]))
   const pending = myLikes
     .map((id) => byId.get(id))
     // только те, кто ещё НЕ лайкнул меня в ответ (мэтч ушёл бы во вкладку «Мэтчи»)
