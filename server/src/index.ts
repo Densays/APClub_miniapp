@@ -965,17 +965,47 @@ app.post('/api/buddy', ah(async (req, res) => {
   const month = monthKey()
   if (me?.buddy && me.buddy.month === month) {
     const buddy = await store.get(me.buddy.userId)
-    return res.json({ ok: true, month, alreadyChosen: true, buddy: buddy ?? null })
+    // Если выбранный ранее бадди ещё существует — возвращаем его. Если профиль
+    // пропал (удалён) — НЕ отдаём null, а перевыбираем ниже.
+    if (buddy && !isReserved(buddy.userId)) {
+      return res.json({ ok: true, month, alreadyChosen: true, buddy })
+    }
   }
-  // Кандидаты — все видимые резиденты, кроме самого себя
+  // Кандидаты — все видимые зарегистрированные резиденты, кроме самого себя
   const all = onlyMembers(await store.list())
-  const candidates = all.filter((p) => p.userId !== meId && p.showProfile !== false)
+  const candidates = all.filter((p) => p.userId !== meId && p.showProfile !== false && p.registeredAt)
   if (candidates.length === 0) {
     return res.json({ ok: true, month, alreadyChosen: false, buddy: null, empty: true })
   }
   const pick = candidates[Math.floor(Math.random() * candidates.length)]
   await store.upsert(meId, { buddy: { month, userId: pick.userId } })
   res.json({ ok: true, month, alreadyChosen: false, buddy: pick })
+}))
+
+// Геймификация для админа: пары бадди (текущий месяц) + взаимные мэтчи нетворкинга.
+app.get('/api/admin/pairs', ah(async (req, res) => {
+  if (!(await requireAdmin(req, res))) return
+  const all = onlyMembers(await store.list())
+  const byId = new Map(all.map((p) => [p.userId, p]))
+  const nm = (id?: string) => { const p = id ? byId.get(id) : null; return p ? (`${p.firstName ?? ''} ${p.lastName ?? ''}`.trim() || id) : id }
+  const month = monthKey()
+  // Бадди текущего месяца (A выбрал B)
+  const buddies = all
+    .filter((p) => p.buddy && p.buddy.month === month && byId.has(p.buddy.userId))
+    .map((p) => ({ a: p.userId, aName: nm(p.userId), b: p.buddy!.userId, bName: nm(p.buddy!.userId) }))
+  // Взаимные мэтчи нетворкинга (A лайкнул B и B лайкнул A), без дублей пар
+  const matches: { a: string; aName: string; b: string; bName: string }[] = []
+  const seen = new Set<string>()
+  for (const p of all) {
+    for (const likeId of p.coffeeLikes ?? []) {
+      const t = byId.get(likeId)
+      if (t && (t.coffeeLikes ?? []).includes(p.userId)) {
+        const key = [p.userId, likeId].sort().join(':')
+        if (!seen.has(key)) { seen.add(key); matches.push({ a: p.userId, aName: nm(p.userId), b: likeId, bName: nm(likeId) }) }
+      }
+    }
+  }
+  res.json({ ok: true, buddies, matches })
 }))
 
 // ── Запуск ────────────────────────────────────────────────────────────────────

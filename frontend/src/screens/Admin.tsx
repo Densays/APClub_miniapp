@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import './Admin.css'
 import Header from '../components/Header'
 import { achievements as CATALOG } from '../mock'
-import { getProfiles, adminUpdateProfile, getShowcase, saveShowcase } from '../api'
-import type { ProfileData, Perk } from '../api'
+import { getProfiles, adminUpdateProfile, getShowcase, saveShowcase, getAdminPairs } from '../api'
+import type { ProfileData, Perk, PairRow } from '../api'
 
 const nameOf = (p: ProfileData) => `${p.firstName ?? ''} ${p.lastName ?? ''}`.trim() || 'Участник'
 const initialsOf = (p: ProfileData) => `${p.firstName?.[0] ?? ''}${p.lastName?.[0] ?? ''}` || 'AP'
@@ -16,10 +16,12 @@ export default function Admin({ onBack }: { onBack?: () => void }) {
   const [msg, setMsg] = useState('')
   const [perks, setPerks] = useState<Perk[]>([])
   const [scMsg, setScMsg] = useState('')
+  const [pairs, setPairs] = useState<{ buddies: PairRow[]; matches: PairRow[] }>({ buddies: [], matches: [] })
 
   useEffect(() => {
     getProfiles().then(setUsers).catch(() => setUsers([]))
     getShowcase().then(setPerks).catch(() => {})
+    getAdminPairs().then(setPairs).catch(() => {})
   }, [])
 
   const editPerk = (i: number, patch: Partial<Perk>) => setPerks((ps) => ps.map((p, j) => (j === i ? { ...p, ...patch } : p)))
@@ -87,6 +89,19 @@ export default function Admin({ onBack }: { onBack?: () => void }) {
             <button className="ad-btn-ghost" onClick={addPerk}>+ Перк</button>
             <button className="ad-btn" onClick={saveSc}>Сохранить витрину</button>
           </div>
+
+          {/* Геймификация: бадди и пары */}
+          <div className="ad-title" style={{ marginTop: 18 }}>Бадди и пары</div>
+          <div className="ad-sub-t">Бадди этого месяца</div>
+          {pairs.buddies.length === 0 && <div className="ad-empty-s">Пока никто не выбрал бадди.</div>}
+          {pairs.buddies.map((p, i) => (
+            <div className="ad-pair" key={`b${i}`}><b>{p.aName}</b> → {p.bName}</div>
+          ))}
+          <div className="ad-sub-t">Взаимные мэтчи нетворкинга</div>
+          {pairs.matches.length === 0 && <div className="ad-empty-s">Пока нет взаимных мэтчей.</div>}
+          {pairs.matches.map((p, i) => (
+            <div className="ad-pair" key={`m${i}`}><b>{p.aName}</b> ↔ <b>{p.bName}</b></div>
+          ))}
 
           <div className="ad-title" style={{ marginTop: 18 }}>Участники ({users?.length ?? 0})</div>
           {users === null && <div className="ad-empty">Загрузка…</div>}

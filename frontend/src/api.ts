@@ -216,6 +216,13 @@ export async function getShowcase(): Promise<Perk[]> {
   if (!r.ok) throw new Error(`showcase load failed: ${r.status}`)
   return ((await r.json()).perks as Perk[]) ?? []
 }
+export type PairRow = { a: string; aName: string; b: string; bName: string }
+export async function getAdminPairs(): Promise<{ buddies: PairRow[]; matches: PairRow[] }> {
+  const r = await fetch(`${API_BASE}/api/admin/pairs`, { headers: authHeaders() })
+  if (!r.ok) throw new Error(`pairs failed: ${r.status}`)
+  const d = await r.json()
+  return { buddies: d.buddies ?? [], matches: d.matches ?? [] }
+}
 // Сохранить витрину (админ — из мобильной админки, Telegram-авторизация).
 export async function saveShowcase(perks: Perk[]): Promise<Perk[]> {
   const r = await fetch(`${API_BASE}/api/admin/showcase`, {
