@@ -342,12 +342,14 @@ export async function saveAllowlist(emails: string[]): Promise<string[]> {
   return ((await r.json()).emails as string[]) ?? []
 }
 
-export type BuddyMember = { id: string; name: string; buddyId: string; buddyName: string }
-export async function getAdminPairs(): Promise<BuddyMember[]> {
+export type BuddyMember = { id: string; name: string; buddyId: string; buddyName: string; needsFix?: boolean }
+export type NetMatch = { aName: string; bName: string }
+export async function getAdminPairs(): Promise<{ members: BuddyMember[]; matches: NetMatch[] }> {
   const r = await fetch(`${API_BASE}/api/admin/pairs`, { headers: headers() })
   if (r.status === 401) throw new Error('unauth')
   if (!r.ok) throw new Error(`Список не загрузился (${r.status})`)
-  return ((await r.json()).members as BuddyMember[]) ?? []
+  const d = await r.json()
+  return { members: d.members ?? [], matches: d.matches ?? [] }
 }
 // Изменить бадди: buddyId='' — авто, '<id>' — вручную, null — снять.
 export async function setBuddy(userId: string, buddyId: string | null): Promise<{ buddyId: string; buddyName: string; empty?: boolean }> {

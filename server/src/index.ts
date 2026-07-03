@@ -983,43 +983,71 @@ app.post('/api/buddy', ah(async (req, res) => {
 }))
 
 const buddyName = (p?: Profile | null) => (p ? (`${p.firstName ?? ''} ${p.lastName ?? ''}`.trim() || p.userId) : '')
-// Геймификация для админа: список резидентов и их бадди текущего месяца (редактируемо).
+// Геймификация для админа: список резидентов + их бадди месяца (редактируемо) +
+// взаимные мэтчи нетворкинга (для вкладки «Нетворкинг»).
 app.get('/api/admin/pairs', ah(async (req, res) => {
   if (!(await requireAdmin(req, res))) return
   const all = onlyMembers(await store.list())
   const byId = new Map(all.map((p) => [p.userId, p]))
   const month = monthKey()
+  const curBuddy = (p?: Profile | null) => (p?.buddy && p.buddy.month === month ? p.buddy.userId : '')
   const members = all
     .filter((p) => p.registeredAt)
     .map((p) => {
-      const b = p.buddy && p.buddy.month === month ? byId.get(p.buddy.userId) : null
-      return { id: p.userId, name: buddyName(p), buddyId: b ? b.userId : '', buddyName: buddyName(b) }
+      const bid = curBuddy(p)
+      const b = bid ? byId.get(bid) : null
+      // Пара «требует корректировки», если бадди нет ИЛИ он не отвечает взаимностью.
+      const needsFix = !b || curBuddy(b) !== p.userId
+      return { id: p.userId, name: buddyName(p), buddyId: b ? bid : '', buddyName: buddyName(b), needsFix }
     })
     .sort((a, b) => a.name.localeCompare(b.name))
-  res.json({ ok: true, members })
+  // Взаимные мэтчи нетворкинга (без дублей пар)
+  const matches: { aName: string; bName: string }[] = []
+  const seen = new Set<string>()
+  for (const p of all) {
+    for (const likeId of p.coffeeLikes ?? []) {
+      const t = byId.get(likeId)
+      if (t && (t.coffeeLikes ?? []).includes(p.userId)) {
+        const key = [p.userId, likeId].sort().join(':')
+        if (!seen.has(key)) { seen.add(key); matches.push({ aName: buddyName(p), bName: buddyName(t) }) }
+      }
+    }
+  }
+  res.json({ ok: true, members, matches })
 }))
 
-// Изменить бадди резидента: buddyId '' → авто-перераспределение (случайный),
-// buddyId=<id> → ручной выбор, buddyId=null → снять бадди. Текущий месяц.
+// Изменить бадди — ВЗАИМНО (A↔B). buddyId '' → авто (предпочитая свободных),
+// <id> → вручную, null → снять. Прежние партнёры обоих освобождаются.
 app.post('/api/admin/buddy', ah(async (req, res) => {
   if (!(await requireAdmin(req, res))) return
   const body = (req.body ?? {}) as { userId?: string; buddyId?: string | null }
   const uid = String(body.userId ?? '')
   if (!uid || isReserved(uid)) return res.status(400).json({ ok: false, error: 'bad_user' })
   const month = monthKey()
-  if (body.buddyId === null) {
-    await store.upsert(uid, { buddy: undefined })
-    return res.json({ ok: true, buddyId: '', buddyName: '' })
+  const all = onlyMembers(await store.list())
+  const byId = new Map(all.map((p) => [p.userId, p]))
+  const curBuddy = (p?: Profile | null) => (p?.buddy && p.buddy.month === month ? p.buddy.userId : '')
+  // Разорвать пару человека id и освободить его партнёра.
+  const unpair = async (id: string) => {
+    const p = byId.get(id); if (!p) return
+    const partnerId = curBuddy(p)
+    if (partnerId && curBuddy(byId.get(partnerId)) === id) await store.upsert(partnerId, { buddy: undefined })
+    await store.upsert(id, { buddy: undefined })
   }
+  if (body.buddyId === null) { await unpair(uid); return res.json({ ok: true }) }
   let bid = String(body.buddyId ?? '')
   if (!bid) {
-    const cands = onlyMembers(await store.list()).filter((p) => p.userId !== uid && p.showProfile !== false && p.registeredAt)
-    if (!cands.length) return res.json({ ok: true, empty: true })
-    bid = cands[Math.floor(Math.random() * cands.length)].userId
+    const elig = all.filter((p) => p.userId !== uid && p.showProfile !== false && p.registeredAt)
+    const free = elig.filter((p) => !curBuddy(p)) // без пары — приоритет
+    const pool = free.length ? free : elig
+    if (!pool.length) return res.json({ ok: true, empty: true })
+    bid = pool[Math.floor(Math.random() * pool.length)].userId
   }
+  await unpair(uid)
+  await unpair(bid)
   await store.upsert(uid, { buddy: { month, userId: bid } })
-  const b = await store.get(bid)
-  res.json({ ok: true, buddyId: bid, buddyName: buddyName(b) })
+  await store.upsert(bid, { buddy: { month, userId: uid } })
+  res.json({ ok: true, buddyId: bid, buddyName: buddyName(byId.get(bid)) })
 }))
 
 // ── Запуск ────────────────────────────────────────────────────────────────────

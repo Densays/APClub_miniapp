@@ -364,3 +364,6 @@ textarea.input { resize: vertical; }
 .buddy-row .input { flex: 1; }
 .buddy-x { flex-shrink: 0; width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--line2); background: var(--panel2); color: var(--gray); cursor: pointer; font-size: 14px; }
 .buddy-x:hover { border-color: var(--gold); }
+
+.pairs-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+.buddy-row.fix { background: rgba(255, 97, 120, .07); border-radius: 8px; padding-left: 8px; padding-right: 8px; }
