@@ -6,6 +6,8 @@
 // шлём только текст, а кнопки появятся автоматически, когда впишем URL в env.
 
 import { WELCOME_JPEG_BASE64 } from './welcomeAsset.ts'
+import { store } from './store.ts'
+import type { Profile } from './store.ts'
 
 const BOT_TOKEN = process.env.BOT_TOKEN ?? ''
 const IS_VERCEL = Boolean(process.env.VERCEL) // на Vercel — webhook вместо polling
@@ -115,10 +117,76 @@ async function sendWelcome(chatId: number): Promise<void> {
   if (!res.ok) console.error('[bot] sendWelcome error:', res.error)
 }
 
-type Update = { update_id: number; message?: { chat?: { id: number }; text?: string } }
+// ── Нетворкинг: уведомление о запросе на знакомство + подтверждение ──────────
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+const displayName = (p?: Profile | null) =>
+  `${p?.firstName ?? ''} ${p?.lastName ?? ''}`.trim() || 'Резидент клуба'
+
+async function tgSend(method: string, payload: Record<string, unknown>): Promise<void> {
+  if (!BOT_TOKEN) return
+  try {
+    await fetch(TG(method), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    })
+  } catch (e) { console.error(`[bot] ${method} error:`, (e as Error).message) }
+}
+
+// DM получателю: «[Имя] предложил познакомиться» + кнопка «Подтвердить».
+export async function sendNetworkingRequest(toId: string, fromName: string, fromId: string): Promise<void> {
+  const text =
+    `👋 <b>${escapeHtml(fromName)}</b> предложил вам познакомиться.\n\n` +
+    'Если вам интересно — откройте приложение, ответьте взаимностью и нажмите кнопку «Подтвердить» под сообщением.'
+  const rows: Record<string, unknown>[][] = [[{ text: '✅ Подтвердить', callback_data: `nwok:${fromId}` }]]
+  if (isHttps(MINIAPP_URL)) rows.push([{ text: '📲 Открыть приложение', web_app: { url: MINIAPP_URL } }])
+  await tgSend('sendMessage', { chat_id: toId, text, parse_mode: 'HTML', reply_markup: { inline_keyboard: rows } })
+}
+
+// Подтверждение знакомства (из бота-кнопки ИЛИ из приложения): meId отвечает
+// взаимностью на запрос fromId. Это НЕ новый исходящий запрос — недельный лимит
+// не тратится (без coffeeLikeAt). При взаимности — мэтч + уведомление обоим.
+export async function confirmNetworking(meId: string, fromId: string): Promise<{ ok: boolean; matched: boolean }> {
+  if (!meId || !fromId || meId === fromId) return { ok: false, matched: false }
+  const me = (await store.get(meId)) ?? ({ userId: meId } as Profile)
+  const from = await store.get(fromId)
+  if (!from) return { ok: false, matched: false }
+  const likes = new Set(me.coffeeLikes ?? [])
+  likes.add(fromId)
+  await store.upsert(meId, { coffeeLikes: [...likes] })
+  const matched = (from.coffeeLikes ?? []).includes(meId)
+  if (matched) {
+    await tgSend('sendMessage', { chat_id: fromId, parse_mode: 'HTML', text: `🎉 <b>Это мэтч!</b> ${escapeHtml(displayName(me))} ответил(а) взаимностью. Откройте приложение → «Мэтчи», чтобы списаться.` })
+    await tgSend('sendMessage', { chat_id: meId, parse_mode: 'HTML', text: `🎉 <b>Это мэтч!</b> с ${escapeHtml(displayName(from))}. Откройте приложение → «Мэтчи».` })
+  }
+  return { ok: true, matched }
+}
+
+async function answerCallback(id: string, text: string): Promise<void> {
+  await tgSend('answerCallbackQuery', { callback_query_id: id, text })
+}
+
+type CallbackQuery = { id: string; from?: { id: number }; data?: string }
+async function handleCallback(cq: CallbackQuery): Promise<void> {
+  const data = cq.data ?? ''
+  const meId = String(cq.from?.id ?? '')
+  if (data.startsWith('nwok:') && meId) {
+    const res = await confirmNetworking(meId, data.slice(5))
+    await answerCallback(cq.id, res.matched ? '🎉 Взаимно! Это мэтч' : '✓ Подтверждено')
+  } else {
+    await answerCallback(cq.id, '')
+  }
+}
+
+type Update = {
+  update_id: number
+  message?: { chat?: { id: number }; text?: string }
+  callback_query?: CallbackQuery
+}
 
 // Обработка одного апдейта (общая для polling и webhook).
 export async function handleUpdate(u: Update): Promise<void> {
+  if (u.callback_query) { await handleCallback(u.callback_query); return }
   const chatId = u.message?.chat?.id
   if (!chatId) return
   // На /start и на любое сообщение показываем приветствие с входом.
@@ -131,7 +199,7 @@ export async function setWebhook(url: string): Promise<{ ok: boolean; error?: st
   try {
     const r = await fetch(TG('setWebhook'), {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url, allowed_updates: ['message'], drop_pending_updates: true }),
+      body: JSON.stringify({ url, allowed_updates: ['message', 'callback_query'], drop_pending_updates: true }),
     })
     const d = (await r.json().catch(() => ({}))) as { ok?: boolean; description?: string }
     return { ok: Boolean(d.ok), error: d.ok ? undefined : d.description }
@@ -147,7 +215,7 @@ async function pollLoop(): Promise<void> {
   let offset = 0
   while (running) {
     try {
-      const r = await fetch(TG('getUpdates') + `?timeout=30&offset=${offset}&allowed_updates=["message"]`)
+      const r = await fetch(TG('getUpdates') + `?timeout=30&offset=${offset}&allowed_updates=["message","callback_query"]`)
       const data = (await r.json().catch(() => ({}))) as { ok?: boolean; result?: Update[]; description?: string }
       if (!data.ok) {
         // 409 Conflict — если параллельно запущен другой поллер/вебхук. Ждём и пробуем снова.

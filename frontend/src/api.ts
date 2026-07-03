@@ -108,19 +108,33 @@ export async function getProfiles(): Promise<ProfileData[]> {
   return (data.profiles as ProfileData[]) ?? []
 }
 
-// ── Нетворкинг: рандом-кофе (тиндер-свайпы) ──────────────────────────────────
-export async function getCoffeeCandidates(): Promise<ProfileData[]> {
+// ── Нетворкинг: знакомства (свайпы) ──────────────────────────────────────────
+export type CoffeeQuota = { limit: number; used: number; remaining: number; resetAt: number | null }
+export async function getCoffeeCandidates(): Promise<{ candidates: ProfileData[]; quota: CoffeeQuota }> {
   const r = await fetch(`${API_BASE}/api/coffee/candidates`, { headers: authHeaders() })
   if (!r.ok) throw new Error(`coffee candidates failed: ${r.status}`)
-  return ((await r.json()).candidates as ProfileData[]) ?? []
+  const d = await r.json()
+  return { candidates: (d.candidates as ProfileData[]) ?? [], quota: d.quota as CoffeeQuota }
 }
-export async function coffeeSwipe(targetId: string, like: boolean): Promise<{ matched: boolean; target: ProfileData | null }> {
+export async function coffeeSwipe(targetId: string, like: boolean): Promise<{ matched: boolean; blocked: boolean; target: ProfileData | null; quota?: CoffeeQuota }> {
   const r = await fetch(`${API_BASE}/api/coffee/swipe`, {
     method: 'POST', headers: authHeaders(), body: JSON.stringify({ targetId, like }),
   })
   if (!r.ok) throw new Error(`coffee swipe failed: ${r.status}`)
   const d = await r.json()
-  return { matched: Boolean(d.matched), target: (d.target as ProfileData) ?? null }
+  return { matched: Boolean(d.matched), blocked: Boolean(d.blocked), target: (d.target as ProfileData) ?? null, quota: d.quota as CoffeeQuota | undefined }
+}
+export async function getCoffeeIncoming(): Promise<ProfileData[]> {
+  const r = await fetch(`${API_BASE}/api/coffee/incoming`, { headers: authHeaders() })
+  if (!r.ok) throw new Error(`coffee incoming failed: ${r.status}`)
+  return ((await r.json()).incoming as ProfileData[]) ?? []
+}
+export async function coffeeConfirm(fromId: string): Promise<{ matched: boolean }> {
+  const r = await fetch(`${API_BASE}/api/coffee/confirm`, {
+    method: 'POST', headers: authHeaders(), body: JSON.stringify({ fromId }),
+  })
+  if (!r.ok) throw new Error(`coffee confirm failed: ${r.status}`)
+  return { matched: Boolean((await r.json()).matched) }
 }
 export async function getCoffeeMatches(): Promise<ProfileData[]> {
   const r = await fetch(`${API_BASE}/api/coffee/matches`, { headers: authHeaders() })

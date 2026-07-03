@@ -19,7 +19,7 @@ import {
   EVENT_DEFS,
   type EventId,
 } from './notifications.ts'
-import { startBot, channelStatus, publishChannelEntry, handleUpdate, setWebhook, fetchUsername } from './bot.ts'
+import { startBot, channelStatus, publishChannelEntry, handleUpdate, setWebhook, fetchUsername, sendNetworkingRequest, confirmNetworking } from './bot.ts'
 
 const app = express()
 const PORT = Number(process.env.PORT) || 3000
@@ -381,24 +381,43 @@ app.get('/api/profile/:id', ah(async (req, res) => {
   res.json({ ok: true, profile: p })
 }))
 
-// ── Нетворкинг: рандом-кофе (тиндер-свайпы) ──────────────────────────────────
-// Кандидаты для свайпа: резиденты (видимые, зарегистрированные), которых я ещё
-// не свайпал. Обогащены прогрессом (для статуса) — звёзды считает клиент.
+// ── Нетворкинг: знакомства (свайпы) ──────────────────────────────────────────
+// Лимит запросов на знакомство: 5 в скользящую неделю. Отправка запроса тратит
+// лимит; ответ на входящий (взаимность) — нет.
+const WEEKLY_REQUESTS = 5
+function coffeeQuota(me: Profile | null) {
+  const at = me?.coffeeLikeAt ?? {}
+  const since = Date.now() - 7 * DAY_MS
+  const recent = Object.values(at).filter((t) => typeof t === 'number' && t > since).sort((a, b) => a - b)
+  const used = recent.length
+  return {
+    limit: WEEKLY_REQUESTS,
+    used,
+    remaining: Math.max(0, WEEKLY_REQUESTS - used),
+    resetAt: used >= WEEKLY_REQUESTS ? recent[0] + 7 * DAY_MS : null,
+  }
+}
+
+// Кандидаты: резиденты, которым я ещё НЕ отправлял запрос (пропущенные снова
+// появляются — список не заканчивается, «обновляется»). Клиент сам скрывает
+// пропущенных на время сессии.
 app.get('/api/coffee/candidates', ah(async (req, res) => {
   const user = resolveUser(req)
   if (!user) return res.status(401).json({ ok: false, error: 'Unauthorized' })
   const meId = String(user.id)
   const me = await store.get(meId)
-  const swiped = new Set<string>([...(me?.coffeeLikes ?? []), ...(me?.coffeePasses ?? []), meId])
+  const requested = new Set<string>([...(me?.coffeeLikes ?? []), meId])
   const total = (await getLevels()).length
   const cands = onlyMembers(await store.list())
-    .filter((p) => p.showProfile !== false && p.registeredAt && !swiped.has(p.userId))
-    .slice(0, 50)
+    // не запрошенные мной И не приславшие запрос мне (входящие — в отдельной вкладке)
+    .filter((p) => p.showProfile !== false && p.registeredAt && !requested.has(p.userId) && !(p.coffeeLikes ?? []).includes(meId))
+    .slice(0, 100)
     .map((p) => ({ ...p, unlock: computeUnlock(p, total) }))
-  res.json({ ok: true, candidates: cands })
+  res.json({ ok: true, candidates: cands, quota: coffeeQuota(me) })
 }))
 
-// Свайп: like=true — «хочу на кофе», like=false — пропустить. Взаимный лайк = мэтч.
+// Свайп: like=true — отправить запрос на знакомство. like=false — пропустить
+// (только на клиенте, сервер не хранит). Взаимность = мэтч + уведомление обоим.
 app.post('/api/coffee/swipe', ah(async (req, res) => {
   const user = resolveUser(req)
   if (!user) return res.status(401).json({ ok: false, error: 'Unauthorized' })
@@ -408,23 +427,53 @@ app.post('/api/coffee/swipe', ah(async (req, res) => {
   if (!targetId || targetId === meId || isReserved(targetId)) {
     return res.status(400).json({ ok: false, error: 'bad_target' })
   }
+  if (!body.like) return res.json({ ok: true, passed: true }) // пропуск — клиентский
   const me = (await store.get(meId)) ?? ({ userId: meId } as Profile)
-  const likes = new Set(me.coffeeLikes ?? [])
-  const passes = new Set(me.coffeePasses ?? [])
-  if (body.like) { likes.add(targetId); passes.delete(targetId) }
-  else { passes.add(targetId); likes.delete(targetId) }
-  await store.upsert(meId, { coffeeLikes: [...likes].slice(-1000), coffeePasses: [...passes].slice(-1000) })
-  // Мэтч: другой уже лайкнул меня.
-  let matched = false
-  let target: unknown = null
-  if (body.like) {
-    const t = await store.get(targetId)
-    if (t && (t.coffeeLikes ?? []).includes(meId)) {
-      matched = true
-      target = { ...t, unlock: computeUnlock(t, (await getLevels()).length) }
-    }
+  const target = await store.get(targetId)
+  if (!target) return res.status(400).json({ ok: false, error: 'bad_target' })
+  const total = (await getLevels()).length
+
+  // Взаимность (цель уже отправляла мне запрос) → мэтч, лимит НЕ тратится.
+  if ((target.coffeeLikes ?? []).includes(meId)) {
+    await confirmNetworking(meId, targetId)
+    return res.json({ ok: true, matched: true, target: { ...target, unlock: computeUnlock(target, total) }, quota: coffeeQuota(me) })
   }
-  res.json({ ok: true, matched, target })
+
+  // Новый запрос → проверяем недельный лимит. Исчерпан — тихо блокируем (без ошибки).
+  const q = coffeeQuota(me)
+  if (q.remaining <= 0) return res.json({ ok: true, blocked: true, quota: q })
+
+  const likes = new Set(me.coffeeLikes ?? []); likes.add(targetId)
+  const at = { ...(me.coffeeLikeAt ?? {}) }; at[targetId] = Date.now()
+  const saved = await store.upsert(meId, { coffeeLikes: [...likes], coffeeLikeAt: at })
+  const fromName = `${saved.firstName ?? ''} ${saved.lastName ?? ''}`.trim() || 'Резидент клуба'
+  sendNetworkingRequest(targetId, fromName, meId).catch(() => {}) // DM с кнопкой «Подтвердить»
+  res.json({ ok: true, matched: false, quota: coffeeQuota(saved) })
+}))
+
+// Входящие запросы на знакомство: кто отправил запрос мне, а я ещё не ответил.
+app.get('/api/coffee/incoming', ah(async (req, res) => {
+  const user = resolveUser(req)
+  if (!user) return res.status(401).json({ ok: false, error: 'Unauthorized' })
+  const meId = String(user.id)
+  const me = await store.get(meId)
+  const myLikes = new Set(me?.coffeeLikes ?? [])
+  const total = (await getLevels()).length
+  const incoming = onlyMembers(await store.list())
+    .filter((p) => p.userId !== meId && (p.coffeeLikes ?? []).includes(meId) && !myLikes.has(p.userId))
+    .map((p) => ({ ...p, unlock: computeUnlock(p, total) }))
+  res.json({ ok: true, incoming })
+}))
+
+// Подтвердить входящий запрос (ответить взаимностью) — из приложения. Мэтч.
+app.post('/api/coffee/confirm', ah(async (req, res) => {
+  const user = resolveUser(req)
+  if (!user) return res.status(401).json({ ok: false, error: 'Unauthorized' })
+  const meId = String(user.id)
+  const fromId = String((req.body as { fromId?: string })?.fromId ?? '')
+  if (!fromId) return res.status(400).json({ ok: false, error: 'bad_target' })
+  const r = await confirmNetworking(meId, fromId)
+  res.json({ ok: r.ok, matched: r.matched })
 }))
 
 // Мои мэтчи — резиденты, с кем взаимный лайк (для связи в TG).

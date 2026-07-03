@@ -3,7 +3,7 @@ import './Networking.css'
 import Header from '../components/Header'
 import {
   getCoffeeCandidates, coffeeSwipe, getCoffeeMatches, getCoffeePending, coffeePin,
-  type ProfileData,
+  getCoffeeIncoming, coffeeConfirm, type ProfileData, type CoffeeQuota,
 } from '../api'
 import { useCatalog } from '../catalog'
 import { computeStars } from '../stars'
@@ -31,13 +31,15 @@ const SWIPE_THRESHOLD = 110
 
 export default function Networking({ onOpenMember }: { onOpenMember?: (id: string) => void }) {
   const catalog = useCatalog()
-  const [view, setView] = useState<'swipe' | 'pending' | 'matches'>('swipe')
+  const [view, setView] = useState<'swipe' | 'incoming' | 'pending' | 'matches'>('swipe')
   const [cards, setCards] = useState<ProfileData[] | null>(null)
+  const [quota, setQuota] = useState<CoffeeQuota | null>(null)
   const [idx, setIdx] = useState(0)
   const [leaving, setLeaving] = useState<'' | 'left' | 'right'>('')
   const [drag, setDrag] = useState(0)
   const [match, setMatch] = useState<ProfileData | null>(null)
   const [matches, setMatches] = useState<ProfileData[]>([])
+  const [incoming, setIncoming] = useState<ProfileData[] | null>(null)
   const [pending, setPending] = useState<Pending[] | null>(null)
   const [maxPins, setMaxPins] = useState(3)
   const [pinMsg, setPinMsg] = useState('')
@@ -45,75 +47,76 @@ export default function Networking({ onOpenMember }: { onOpenMember?: (id: strin
   const dragStart = useRef<number | null>(null)
   const dragX = useRef(0)
 
-  useEffect(() => {
-    let alive = true
-    getCoffeeCandidates().then((c) => { if (alive) setCards(c) }).catch(() => { if (alive) setError(true) })
-    getCoffeeMatches().then((m) => { if (alive) setMatches(m) }).catch(() => {})
-    return () => { alive = false }
-  }, [])
+  const noRequests = !!quota && quota.remaining <= 0
 
-  // Подгружаем «Избранные» при первом открытии вкладки.
+  function loadDeck() {
+    getCoffeeCandidates().then((r) => { setCards(r.candidates); setQuota(r.quota); setIdx(0) }).catch(() => setError(true))
+  }
   useEffect(() => {
-    if (view === 'pending' && pending === null) {
-      getCoffeePending().then((r) => { setPending(r.pending); setMaxPins(r.maxPins) }).catch(() => setPending([]))
-    }
+    loadDeck()
+    getCoffeeMatches().then(setMatches).catch(() => {})
+    getCoffeeIncoming().then(setIncoming).catch(() => setIncoming([]))
+  }, [])
+  useEffect(() => {
+    if (view === 'pending' && pending === null) getCoffeePending().then((r) => { setPending(r.pending); setMaxPins(r.maxPins) }).catch(() => setPending([]))
   }, [view, pending])
 
   const catAch = catalog.achievements
   const starsOf = (p: ProfileData) => computeStars(p, catAch)
-  const statusOf = (p: ProfileData) => {
-    const cur = p.unlock?.current ?? 0
-    return cur > 0 ? catalog.levels[cur - 1] : ''
-  }
+  const statusOf = (p: ProfileData) => { const c = p.unlock?.current ?? 0; return c > 0 ? catalog.levels[c - 1] : '' }
   const current = cards && idx < cards.length ? cards[idx] : null
 
-  function swipe(like: boolean) {
-    if (!current || leaving) return
-    const target = current
-    setLeaving(like ? 'right' : 'left')
-    coffeeSwipe(target.userId ?? '', like)
-      .then((res) => {
-        if (res.matched && res.target) {
-          setMatch(res.target)
-          setMatches((m) => (m.some((x) => x.userId === res.target!.userId) ? m : [...m, res.target!]))
-        }
-        // лайкнутый (без мэтча) появится в «Избранных» — сбросим кэш вкладки
-        if (like) setPending(null)
-      })
-      .catch(() => {})
+  function afterSwipe() {
     window.setTimeout(() => { setIdx((i) => i + 1); setLeaving(''); setDrag(0); dragX.current = 0 }, 300)
   }
+  function swipe(like: boolean) {
+    if (!current || leaving) return
+    if (like && noRequests) { setDrag(0); dragX.current = 0; return } // лимит исчерпан — тихо, без запроса
+    const target = current
+    setLeaving(like ? 'right' : 'left')
+    if (like) {
+      coffeeSwipe(target.userId ?? '', true)
+        .then((res) => {
+          if (res.quota) setQuota(res.quota)
+          if (res.matched && res.target) {
+            setMatch(res.target)
+            setMatches((m) => (m.some((x) => x.userId === res.target!.userId) ? m : [...m, res.target!]))
+          }
+          setPending(null)
+        })
+        .catch(() => {})
+    }
+    afterSwipe()
+  }
 
-  // ── Драг-свайп верхней карточки ──
-  function onDown(e: React.PointerEvent) {
-    if (leaving || !current) return
-    dragStart.current = e.clientX
-    ;(e.currentTarget as Element).setPointerCapture?.(e.pointerId)
-  }
-  function onMove(e: React.PointerEvent) {
-    if (dragStart.current == null) return
-    dragX.current = e.clientX - dragStart.current
-    setDrag(dragX.current)
-  }
+  function onDown(e: React.PointerEvent) { if (leaving || !current) return; dragStart.current = e.clientX; (e.currentTarget as Element).setPointerCapture?.(e.pointerId) }
+  function onMove(e: React.PointerEvent) { if (dragStart.current == null) return; dragX.current = e.clientX - dragStart.current; setDrag(dragX.current) }
   function onUp() {
     if (dragStart.current == null) return
     dragStart.current = null
     const dx = dragX.current
-    if (Math.abs(dx) > SWIPE_THRESHOLD) swipe(dx > 0)
+    if (dx > SWIPE_THRESHOLD) swipe(true)
+    else if (dx < -SWIPE_THRESHOLD) swipe(false)
     else { setDrag(0); dragX.current = 0 }
+  }
+
+  async function confirmIncoming(p: ProfileData) {
+    const res = await coffeeConfirm(p.userId ?? '').catch(() => null)
+    setIncoming((list) => (list ?? []).filter((x) => x.userId !== p.userId))
+    if (res?.matched) {
+      setMatch(p)
+      setMatches((m) => (m.some((x) => x.userId === p.userId) ? m : [...m, p]))
+    }
   }
 
   async function togglePin(p: Pending) {
     setPinMsg('')
-    const next = !p.pinned
-    const res = await coffeePin(p.userId ?? '', next)
+    const res = await coffeePin(p.userId ?? '', !p.pinned)
     if (!res.ok) { setPinMsg(res.error === 'pin_limit' ? `Можно закрепить только ${maxPins}` : 'Не удалось'); return }
-    // Перечитываем список (сервер пересортирует закреплённые наверх).
     const r = await getCoffeePending().catch(() => null)
     if (r) { setPending(r.pending); setMaxPins(r.maxPins) }
   }
 
-  // Стиль верхней карточки: драг-смещение или анимация ухода.
   const topStyle: React.CSSProperties = leaving
     ? {}
     : { transform: `translateX(${drag}px) rotate(${drag * 0.05}deg)`, transition: dragStart.current == null ? 'transform .25s' : 'none' }
@@ -124,7 +127,6 @@ export default function Networking({ onOpenMember }: { onOpenMember?: (id: strin
       <span className="nw-stars">★ {starsOf(p)}</span>
     </div>
   )
-
   const socialLinks = (p: ProfileData) => {
     const s = p.social ?? {}
     return [
@@ -135,7 +137,6 @@ export default function Networking({ onOpenMember }: { onOpenMember?: (id: strin
     ].filter((x) => x.v)
   }
 
-  // ── Детальная карточка (свайп) ──
   const Card = ({ p, top }: { p: ProfileData; top?: boolean }) => (
     <div
       className={`nw-card${top && leaving === 'left' ? ' leave-left' : ''}${top && leaving === 'right' ? ' leave-right' : ''}`}
@@ -145,8 +146,8 @@ export default function Networking({ onOpenMember }: { onOpenMember?: (id: strin
       onPointerUp={top ? onUp : undefined}
       onPointerCancel={top ? onUp : undefined}
     >
-      {top && drag > 40 && <div className="nw-hint-like">☕ НА КОФЕ</div>}
-      {top && drag < -40 && <div className="nw-hint-nope">✕ МИМО</div>}
+      {top && drag > 40 && <div className="nw-hint-like">✓ ИНТЕРЕСНО</div>}
+      {top && drag < -40 && <div className="nw-hint-nope">✕ ПРОПУСТИТЬ</div>}
       <div className="nw-ava">
         {p.avatar ? <img src={p.avatar} alt="" draggable={false} /> : <span>{initialsOf(p)}</span>}
       </div>
@@ -180,6 +181,9 @@ export default function Networking({ onOpenMember }: { onOpenMember?: (id: strin
       <div className="nw-body">
         <div className="nw-tabs">
           <button className={`nw-tab${view === 'swipe' ? ' on' : ''}`} onClick={() => setView('swipe')}>Знакомиться</button>
+          <button className={`nw-tab${view === 'incoming' ? ' on' : ''}`} onClick={() => setView('incoming')}>
+            Входящие{incoming && incoming.length ? ` · ${incoming.length}` : ''}
+          </button>
           <button className={`nw-tab${view === 'pending' ? ' on' : ''}`} onClick={() => setView('pending')}>Избранные</button>
           <button className={`nw-tab${view === 'matches' ? ' on' : ''}`} onClick={() => setView('matches')}>
             Мэтчи{matches.length ? ` · ${matches.length}` : ''}
@@ -188,13 +192,17 @@ export default function Networking({ onOpenMember }: { onOpenMember?: (id: strin
 
         {view === 'swipe' && (
           <>
-            <div className="nw-hint">Свайпай карточки: вправо ☕ — на кофе, влево ✕ — мимо. Взаимная симпатия = мэтч.</div>
+            <div className="nw-quota">
+              {quota && !noRequests && <>Запросов на этой неделе: <b>{quota.remaining}</b> из {quota.limit}</>}
+              {noRequests && <>Запросы на неделю исчерпаны. Новые появятся позже — участники обновляются, ответы придут.</>}
+            </div>
             <div className="nw-stack">
               {error && <div className="nw-empty">Не удалось загрузить. Проверь соединение.</div>}
               {!error && cards === null && <div className="nw-empty">Загрузка…</div>}
               {!error && cards && !current && (
                 <div className="nw-empty">
-                  На сегодня все резиденты пересмотрены ☕<br />Загляни позже.
+                  Ты пересмотрел всех на сейчас ✨<br />Пропущенные вернутся, появятся новые резиденты.
+                  <button className="nw-empty-link" onClick={loadDeck}>Обновить список</button>
                 </div>
               )}
               {current && cards && cards[idx + 1] && <div className="nw-card nw-card-behind" />}
@@ -202,21 +210,39 @@ export default function Networking({ onOpenMember }: { onOpenMember?: (id: strin
             </div>
             {current && (
               <div className="nw-actions">
-                <button className="nw-btn nw-pass" onClick={() => swipe(false)} aria-label="Мимо">✕</button>
-                <button className="nw-btn nw-like" onClick={() => swipe(true)} aria-label="На кофе">☕</button>
+                <button className="nw-btn nw-pass" onClick={() => swipe(false)} aria-label="Пропустить">✕</button>
+                <button className={`nw-btn nw-like${noRequests ? ' disabled' : ''}`} onClick={() => swipe(true)} disabled={noRequests} aria-label="Интересно">✓</button>
               </div>
             )}
           </>
         )}
 
+        {view === 'incoming' && (
+          <div className="nw-matches">
+            <div className="nw-quota">Тебе предложили познакомиться. Подтверди — и появится мэтч со связью в Telegram.</div>
+            {incoming === null && <div className="nw-empty">Загрузка…</div>}
+            {incoming && incoming.length === 0 && <div className="nw-empty">Пока нет входящих запросов.</div>}
+            {incoming && incoming.map((p) => (
+              <div className="nw-match-row" key={p.userId}>
+                <div className="nw-match-ava" onClick={() => p.userId && onOpenMember?.(p.userId)}>
+                  {p.avatar ? <img src={p.avatar} alt="" /> : <span>{initialsOf(p)}</span>}
+                </div>
+                <div className="nw-match-info" onClick={() => p.userId && onOpenMember?.(p.userId)}>
+                  <div className="nw-match-name">{nameOf(p)}</div>
+                  <Badges p={p} />
+                </div>
+                <button className="nw-match-write" onClick={() => confirmIncoming(p)}>Подтвердить</button>
+              </div>
+            ))}
+          </div>
+        )}
+
         {view === 'pending' && (
           <div className="nw-pending">
-            <div className="nw-hint">Кого ты лайкнул — ждут ответной симпатии. Закрепи до {maxPins} важных (📌) — они наверху.</div>
+            <div className="nw-quota">Кого ты пригласил — ждут ответной симпатии. Закрепи до {maxPins} важных (📌) — они наверху.</div>
             {pinMsg && <div className="nw-pin-msg">{pinMsg}</div>}
             {pending === null && <div className="nw-empty">Загрузка…</div>}
-            {pending && pending.length === 0 && (
-              <div className="nw-empty">Пока пусто. Лайкай резидентов на вкладке «Знакомиться» — они появятся здесь в ожидании мэтча.</div>
-            )}
+            {pending && pending.length === 0 && <div className="nw-empty">Пока пусто. Приглашай резидентов на вкладке «Знакомиться».</div>}
             {pending && pending.map((p) => (
               <div className={`nw-prow${p.pinned ? ' pinned' : ''}`} key={p.userId}>
                 <div className="nw-prow-ava" onClick={() => p.userId && onOpenMember?.(p.userId)}>
@@ -225,7 +251,7 @@ export default function Networking({ onOpenMember }: { onOpenMember?: (id: strin
                 <div className="nw-prow-info" onClick={() => p.userId && onOpenMember?.(p.userId)}>
                   <div className="nw-prow-name">{nameOf(p)}</div>
                   <Badges p={p} />
-                  <div className="nw-prow-wait">⏳ ожидает мэтча</div>
+                  <div className="nw-prow-wait">⏳ ожидает ответа</div>
                 </div>
                 <button className={`nw-pin${p.pinned ? ' on' : ''}`} onClick={() => togglePin(p)} title={p.pinned ? 'Открепить' : 'Закрепить'}>📌</button>
               </div>
@@ -235,7 +261,7 @@ export default function Networking({ onOpenMember }: { onOpenMember?: (id: strin
 
         {view === 'matches' && (
           <div className="nw-matches">
-            {matches.length === 0 && <div className="nw-empty">Пока нет мэтчей. Лайкай резидентов — при взаимной симпатии появится связь.</div>}
+            {matches.length === 0 && <div className="nw-empty">Пока нет мэтчей. Приглашай резидентов — при взаимной симпатии появится связь.</div>}
             {matches.map((m) => (
               <div className="nw-match-row" key={m.userId}>
                 <div className="nw-match-ava" onClick={() => m.userId && onOpenMember?.(m.userId)}>
@@ -255,13 +281,13 @@ export default function Networking({ onOpenMember }: { onOpenMember?: (id: strin
       {match && (
         <div className="nw-overlay" onClick={() => setMatch(null)}>
           <div className="nw-overlay-card" onClick={(e) => e.stopPropagation()}>
-            <div className="nw-overlay-emoji">☕✨</div>
+            <div className="nw-overlay-emoji">🤝✨</div>
             <div className="nw-overlay-title">Это мэтч!</div>
             <div className="nw-overlay-ava">
               {match.avatar ? <img src={match.avatar} alt="" /> : <span>{initialsOf(match)}</span>}
             </div>
             <div className="nw-overlay-name">{nameOf(match)}</div>
-            <div className="nw-overlay-sub">Вы оба хотите на кофе. Напишите и договоритесь!</div>
+            <div className="nw-overlay-sub">Вы оба готовы познакомиться. Напишите и договоритесь!</div>
             <button className="nw-overlay-write" onClick={() => { openTelegram(match); setMatch(null) }} disabled={!contactHref(match)}>
               Написать в Telegram
             </button>
