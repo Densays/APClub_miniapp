@@ -9,6 +9,7 @@ import AchievementsAdmin from './AchievementsAdmin'
 import Notifications from './Notifications'
 import Allowlist from './Allowlist'
 import Pairs from './Pairs'
+import NetworkingAdmin from './NetworkingAdmin'
 
 type Theme = 'dark' | 'light'
 
@@ -92,6 +93,7 @@ function Shell({ catalog, theme, onToggleTheme, onCatalogChange, onLevelsChange,
       case 'leaders': return <Leaders catalog={catalog} onOpenMember={openMember} />
       case 'allowlist': return <Allowlist />
       case 'pairs': return <Pairs />
+      case 'networking': return <NetworkingAdmin />
       case 'showcase': return <ShowcaseAdmin />
       case 'achievements': return <AchievementsAdmin only="money" onSaved={onCatalogChange} />
       case 'roles': return <AchievementsAdmin only="role" onSaved={onCatalogChange} />
