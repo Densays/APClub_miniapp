@@ -14,6 +14,7 @@ export const NAV: NavGroup[] = [
     { key: 'members', label: 'Участники', icon: 'users', active: true },
     { key: 'leaders', label: 'Таблица лидеров', icon: 'leaders', active: true },
     { key: 'allowlist', label: 'Доступ по почте', icon: 'lock', active: true },
+    { key: 'pairs', label: 'Бадди и пары', icon: 'referrals', active: true },
   ] },
   { title: 'Геймификация', items: [
     { key: 'achievements', label: 'Достижения', icon: 'tasks', active: true },

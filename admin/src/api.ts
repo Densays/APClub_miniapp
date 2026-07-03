@@ -342,6 +342,15 @@ export async function saveAllowlist(emails: string[]): Promise<string[]> {
   return ((await r.json()).emails as string[]) ?? []
 }
 
+export type PairRow = { a: string; aName: string; b: string; bName: string }
+export async function getAdminPairs(): Promise<{ buddies: PairRow[]; matches: PairRow[] }> {
+  const r = await fetch(`${API_BASE}/api/admin/pairs`, { headers: headers() })
+  if (r.status === 401) throw new Error('unauth')
+  if (!r.ok) throw new Error(`Пары не загрузились (${r.status})`)
+  const d = await r.json()
+  return { buddies: d.buddies ?? [], matches: d.matches ?? [] }
+}
+
 export async function getShowcase(): Promise<Perk[]> {
   const r = await fetch(`${API_BASE}/api/showcase`)
   if (!r.ok) throw new Error(`Витрина не загрузилась (${r.status})`)

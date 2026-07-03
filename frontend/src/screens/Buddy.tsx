@@ -3,7 +3,7 @@ import './Buddy.css'
 import Header from '../components/Header'
 import Stars from '../components/Stars'
 import { starItems } from '../stars'
-import { findBuddy, getProfiles } from '../api'
+import { findBuddy, getBuddy, getProfiles } from '../api'
 import type { ProfileData } from '../api'
 import { useAchievements } from '../catalog'
 
@@ -50,6 +50,8 @@ export default function Buddy({ onBack, onOpenMember }: { onBack?: () => void; o
     // Ничего не запускаем автоматически: страница всегда открывается с кнопкой «НАЙТИ».
     // Пул участников грузим заранее — только для анимации перебора.
     getProfiles().then((list) => { if (alive) setPool(list) }).catch(() => {})
+    // Бадди выбирается 1 раз в месяц: если уже выбран — сразу показываем его.
+    getBuddy().then((r) => { if (alive && r.buddy) { setBuddy(r.buddy); setPhase('result') } }).catch(() => {})
     return () => {
       alive = false
       timers.current.forEach(clearInterval)
