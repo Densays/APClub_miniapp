@@ -74,7 +74,7 @@ export default function AchievementsAdmin({ onSaved, only }: { onSaved?: (items:
               </div>
             ))}
           </div>
-          <button className="btn btn-ghost" style={{ marginTop: 10 }} onClick={() => add(g.key)}>Добавить достижения</button>
+          <button className="btn btn-ghost" style={{ marginTop: 10 }} onClick={() => add(g.key)}>{g.key === 'role' ? 'Добавить роль' : 'Добавить достижения'}</button>
         </div>
       ))}
     </div>
