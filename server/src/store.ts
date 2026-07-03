@@ -52,6 +52,7 @@ export type Profile = {
   // Взаимный лайк = мэтч. Заполняется эндпоинтами /api/coffee/*, не в форме.
   coffeeLikes?: string[]
   coffeePasses?: string[]
+  coffeePins?: string[] // закреплённые в «Избранных» (максимум 3, наверху списка)
   createdBy?: 'admin' | 'telegram' // как заведён профиль (ручное создание в админке / вход из Telegram)
   // Активность (трекинг запусков приложения) — заполняется сервером, не пользователем:
   firstSeenAt?: number // первый запуск

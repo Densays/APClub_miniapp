@@ -443,6 +443,50 @@ app.get('/api/coffee/matches', ah(async (req, res) => {
   res.json({ ok: true, matches })
 }))
 
+const MAX_PINS = 3
+// «Избранные» — мои исходящие лайки, которые ещё НЕ стали мэтчем (ожидают).
+// Закреплённые (до 3) идут наверху. Каждый профиль помечен флагом pinned.
+app.get('/api/coffee/pending', ah(async (req, res) => {
+  const user = resolveUser(req)
+  if (!user) return res.status(401).json({ ok: false, error: 'Unauthorized' })
+  const meId = String(user.id)
+  const me = await store.get(meId)
+  const myLikes = me?.coffeeLikes ?? []
+  const pins = (me?.coffeePins ?? []).filter((id) => myLikes.includes(id))
+  const total = (await getLevels()).length
+  const byId = new Map(onlyMembers(await store.list()).map((p) => [p.userId, p]))
+  const pending = myLikes
+    .map((id) => byId.get(id))
+    // только те, кто ещё НЕ лайкнул меня в ответ (мэтч ушёл бы во вкладку «Мэтчи»)
+    .filter((t): t is Profile => !!t && !(t.coffeeLikes ?? []).includes(meId))
+    .map((t) => ({ ...t, unlock: computeUnlock(t, total), pinned: pins.includes(t.userId) }))
+  // Закреплённые — в порядке pins, затем остальные.
+  pending.sort((a, b) => {
+    const pa = pins.indexOf(a.userId), pb = pins.indexOf(b.userId)
+    if (pa !== -1 || pb !== -1) return (pa === -1 ? 99 : pa) - (pb === -1 ? 99 : pb)
+    return 0
+  })
+  res.json({ ok: true, pending, pins, maxPins: MAX_PINS })
+}))
+
+// Закрепить / открепить участника в «Избранных» (максимум 3 закрепа).
+app.post('/api/coffee/pin', ah(async (req, res) => {
+  const user = resolveUser(req)
+  if (!user) return res.status(401).json({ ok: false, error: 'Unauthorized' })
+  const meId = String(user.id)
+  const body = (req.body ?? {}) as { targetId?: string; pinned?: boolean }
+  const targetId = String(body.targetId ?? '')
+  if (!targetId) return res.status(400).json({ ok: false, error: 'bad_target' })
+  const me = (await store.get(meId)) ?? ({ userId: meId } as Profile)
+  const pins = (me.coffeePins ?? []).filter((id) => id !== targetId)
+  if (body.pinned) {
+    if (pins.length >= MAX_PINS) return res.status(409).json({ ok: false, error: 'pin_limit', maxPins: MAX_PINS })
+    pins.unshift(targetId) // новый закреп — в начало
+  }
+  await store.upsert(meId, { coffeePins: pins.slice(0, MAX_PINS) })
+  res.json({ ok: true, pins })
+}))
+
 // ── Браузерная админка (deploy в apk-lab) ────────────────────────────────────
 
 // Анти-брутфорс логина: N неудач с одного IP → временная блокировка. In-memory

@@ -127,6 +127,20 @@ export async function getCoffeeMatches(): Promise<ProfileData[]> {
   if (!r.ok) throw new Error(`coffee matches failed: ${r.status}`)
   return ((await r.json()).matches as ProfileData[]) ?? []
 }
+// «Избранные»: исходящие лайки, ожидающие мэтча (pinned — закреплён наверху).
+export async function getCoffeePending(): Promise<{ pending: (ProfileData & { pinned?: boolean })[]; maxPins: number }> {
+  const r = await fetch(`${API_BASE}/api/coffee/pending`, { headers: authHeaders() })
+  if (!r.ok) throw new Error(`coffee pending failed: ${r.status}`)
+  const d = await r.json()
+  return { pending: (d.pending as (ProfileData & { pinned?: boolean })[]) ?? [], maxPins: d.maxPins ?? 3 }
+}
+// Закрепить/открепить (макс. 3). При превышении — { error:'pin_limit' }.
+export async function coffeePin(targetId: string, pinned: boolean): Promise<{ ok: boolean; error?: string; pins?: string[] }> {
+  const r = await fetch(`${API_BASE}/api/coffee/pin`, {
+    method: 'POST', headers: authHeaders(), body: JSON.stringify({ targetId, pinned }),
+  })
+  return (await r.json().catch(() => ({ ok: false, error: 'network' }))) as { ok: boolean; error?: string; pins?: string[] }
+}
 
 export type BuddyResult = { buddy: ProfileData | null; month: string; chosen?: boolean; alreadyChosen?: boolean; empty?: boolean }
 
