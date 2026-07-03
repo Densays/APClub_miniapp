@@ -30,6 +30,7 @@ export type Profile = {
   lastName?: string
   username?: string
   avatar?: string
+  email?: string
   city?: string
   birthDate?: string
   about?: string

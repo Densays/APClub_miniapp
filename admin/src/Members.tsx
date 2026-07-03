@@ -160,6 +160,7 @@ function AddModal({ onClose, onCreated }: { onClose: () => void; onCreated: (p: 
 const FIELDS: { key: keyof Profile; label: string; type?: 'textarea' | 'date' }[] = [
   { key: 'firstName', label: 'Имя' },
   { key: 'lastName', label: 'Фамилия' },
+  { key: 'email', label: 'Почта' },
   { key: 'city', label: 'Город' },
   { key: 'birthDate', label: 'Дата рождения', type: 'date' },
   { key: 'about', label: 'О себе', type: 'textarea' },

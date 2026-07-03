@@ -164,6 +164,13 @@ export default function EditProfile({
           <span className="ep-hint">По умолчанию загружается из Telegram</span>
         </label>
 
+        {/* Почта — используется для проверки доступа */}
+        <label className="ep-field">
+          <span className="ep-label">Почта</span>
+          <input autoComplete="off" className="ep-input" type="email" inputMode="email" value={form.email ?? ''} placeholder="you@email.com" onChange={(e) => set('email', e.target.value)} />
+          <span className="ep-hint">На неё проверяется доступ к клубу</span>
+        </label>
+
         {/* Город */}
         <label className="ep-field">
           <span className="ep-label">Город</span>
