@@ -4,6 +4,7 @@ import {
   getResources, saveResources,
   type Profile, type Catalog, type Perk,
 } from './api'
+import { computeStars, TIER_MAX } from './stars'
 
 const PERIODS: { key: NonNullable<Profile['billingPeriod']>; label: string }[] = [
   { key: 'monthly', label: 'Ежемесячно' },
@@ -103,7 +104,7 @@ export default function Members({ catalog, openId, onConsumedOpen }: {
                 <span className="td-name-2">{u.username ? `@${u.username}` : `id ${u.userId}`}</span>
               </span>
             </span>
-            <span className="td-col"><b className="gold">★ {(u.achievements ?? []).length}</b></span>
+            <span className="td-col"><b className="gold">★ {computeStars(u, catalog?.achievements ?? [])}</b></span>
             <span className="td-col">{u.unlock?.current ?? 0}/12</span>
             <span className="td-col">
               {u.access?.active === false
@@ -183,7 +184,16 @@ function MemberCard({ user, catalog, onBack, onUpdate, onDelete }: {
 }) {
   const [form, setForm] = useState<Profile>({ ...user })
   const [month, setMonth] = useState<number>(user.unlock?.current ?? 0)
-  const [ach, setAch] = useState<Set<string>>(new Set(user.achievements ?? []))
+  // Достижения (money) и прогресс ролей по тирам разнесены. Legacy: role-id,
+  // лежавший в achievements[], поднимаем в roleTiers как Тир 5.
+  const roleIdSet = new Set((catalog?.achievements ?? []).filter((a) => a.group === 'role').map((a) => a.id))
+  const [ach, setAch] = useState<Set<string>>(() =>
+    new Set((user.achievements ?? []).filter((id) => !roleIdSet.has(id))))
+  const [roleTiers, setRoleTiers] = useState<Record<string, number>>(() => {
+    const rt: Record<string, number> = { ...(user.roleTiers ?? {}) }
+    for (const id of user.achievements ?? []) if (roleIdSet.has(id) && !rt[id]) rt[id] = TIER_MAX
+    return rt
+  })
   const [access, setAccess] = useState<string>(dateToInput(user.accessUntil))
   const [grants, setGrants] = useState<string[]>(user.grants ?? [])
   const [period, setPeriod] = useState<Profile['billingPeriod'] | ''>(user.billingPeriod ?? '')
@@ -199,7 +209,8 @@ function MemberCard({ user, catalog, onBack, onUpdate, onDelete }: {
   // Перки витрины клуба — доступ по звёздам. Звёзды участника = число достижений.
   useEffect(() => { getShowcase().then(setPerks).catch(() => setPerks([])) }, [])
   useEffect(() => { getResources().then(setResCatalog).catch(() => setResCatalog([])) }, [])
-  const stars = ach.size
+  const roles = cat.filter((a) => a.group === 'role')
+  const stars = computeStars({ achievements: Array.from(ach), roleTiers }, cat)
   const set = <K extends keyof Profile>(k: K, v: Profile[K]) => setForm((f) => ({ ...f, [k]: v }))
   const setSocial = (k: keyof NonNullable<Profile['social']>, v: string) =>
     setForm((f) => ({ ...f, social: { ...f.social, [k]: v } }))
@@ -221,7 +232,11 @@ function MemberCard({ user, catalog, onBack, onUpdate, onDelete }: {
     catch { flash('Ошибка') }
   }
   async function saveAch() {
-    try { onUpdate(await updateProfile(user.userId, { achievements: Array.from(ach) })); flash('Достижения сохранены ✓') } catch { flash('Ошибка') }
+    // achievements — только money-id; прогресс ролей отдельно в roleTiers.
+    try { onUpdate(await updateProfile(user.userId, { achievements: Array.from(ach), roleTiers })); flash('Достижения сохранены ✓') } catch { flash('Ошибка') }
+  }
+  function setRoleTier(id: string, tier: number) {
+    setRoleTiers((r) => ({ ...r, [id]: Math.max(0, Math.min(TIER_MAX, tier)) }))
   }
   async function saveGrants(next: string[]) {
     setGrants(next)
@@ -322,22 +337,44 @@ function MemberCard({ user, catalog, onBack, onUpdate, onDelete }: {
         </div>
       </div>
 
-      {/* Достижения */}
+      {/* Достижения + роли */}
       <div className="card">
-        <div className="card-t">Достижения <span className="gold">★ {ach.size}/{cat.length}</span></div>
-        {['money', 'role'].map((grp) => (
-          <div key={grp}>
-            <div className="ach-group-t">{grp === 'money' ? 'За деньги / трейдинг' : 'Роли в клубе'}</div>
-            <div className="ach-grid">
-              {cat.filter((a) => a.group === grp).map((a) => (
-                <button key={a.id} className={`ach${ach.has(a.id) ? ' on' : ''}`} onClick={() => toggle(a.id)}>
-                  <span className="ach-i">{a.icon}</span><span className="ach-t">{a.title}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        ))}
-        <button className="btn btn-gold wide" onClick={saveAch}>Сохранить достижения</button>
+        <div className="card-t">Достижения и роли <span className="gold">★ {stars}/{cat.length}</span></div>
+        <div className="hint">Звёзды = полученные достижения + роли, доведённые до Тира 5.</div>
+
+        <div className="ach-group-t">За деньги / трейдинг · каждое = ★</div>
+        <div className="ach-grid">
+          {cat.filter((a) => a.group === 'money').map((a) => (
+            <button key={a.id} className={`ach${ach.has(a.id) ? ' on' : ''}`} onClick={() => toggle(a.id)}>
+              <span className="ach-i">{a.icon}</span><span className="ach-t">{a.title}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="ach-group-t">Роли в клубе · Тир 5 = ★</div>
+        <div className="role-list">
+          {roles.map((a) => {
+            const tier = Math.max(0, Math.min(TIER_MAX, roleTiers[a.id] ?? 0))
+            return (
+              <div className={`role-row${tier >= TIER_MAX ? ' maxed' : ''}`} key={a.id}>
+                <span className="role-i">{a.icon}</span>
+                <span className="role-t">{a.title}</span>
+                <div className="role-tiers">
+                  {Array.from({ length: TIER_MAX + 1 }, (_, t) => (
+                    <button
+                      key={t}
+                      className={`role-tier${tier === t ? ' sel' : ''}${t > 0 && t <= tier ? ' fill' : ''}`}
+                      onClick={() => setRoleTier(a.id, t)}
+                      title={t === 0 ? 'Нет' : `Тир ${t}`}
+                    >{t}</button>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        <button className="btn btn-gold wide" onClick={saveAch}>Сохранить достижения и роли</button>
       </div>
 
       {/* Доступ к ресурсам */}

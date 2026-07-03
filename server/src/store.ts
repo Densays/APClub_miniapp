@@ -45,7 +45,8 @@ export type Profile = {
   accessUntil?: number // срок доступа (timestamp) = дата следующего платежа. По истечении вход закрыт
   billingPeriod?: 'monthly' | 'quarterly' | 'semiannual' | 'annual' // периодичность оплаты резидента
   grants?: string[] // ручные доступы к ресурсам (выдаёт админ поверх уровней)
-  achievements?: string[] // id полученных ачивок (выдаёт админ/система)
+  achievements?: string[] // id полученных money-ачивок (выдаёт админ/система). Каждая = +1 звезда
+  roleTiers?: Record<string, number> // прогресс по ролям: roleId → тир 0..5. Тир 5 = +1 звезда (тиры 1–4 — только прогресс)
   buddy?: { month: string; userId: string } // выбранный бадди на месяц (раз в месяц)
   createdBy?: 'admin' | 'telegram' // как заведён профиль (ручное создание в админке / вход из Telegram)
   // Активность (трекинг запусков приложения) — заполняется сервером, не пользователем:
@@ -221,6 +222,16 @@ export function sanitizeAdminPatch(input: unknown): Partial<Profile> {
       out.achievements = obj.achievements
         .filter((x): x is string => typeof x === 'string')
         .slice(0, 100)
+    }
+    // Прогресс по ролям: { roleId: тир 0..5 }. Тир 5 даёт звезду.
+    if (obj.roleTiers && typeof obj.roleTiers === 'object' && !Array.isArray(obj.roleTiers)) {
+      const src = obj.roleTiers as Record<string, unknown>
+      const rt: Record<string, number> = {}
+      for (const id of Object.keys(src).slice(0, 100)) {
+        const t = Math.max(0, Math.min(5, Math.floor(Number(src[id]) || 0)))
+        if (t > 0) rt[id.slice(0, 100)] = t // тир 0 не храним — экономим место
+      }
+      out.roleTiers = rt
     }
     if (obj.buddy === null) out.buddy = undefined
     else if (obj.buddy && typeof obj.buddy === 'object') {

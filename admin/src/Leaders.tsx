@@ -1,22 +1,24 @@
 import { useEffect, useState } from 'react'
-import { getProfiles, type Profile } from './api'
+import { getProfiles, type Profile, type Catalog } from './api'
+import { computeStars } from './stars'
 
 const nameOf = (p: Profile) => `${p.firstName ?? ''} ${p.lastName ?? ''}`.trim() || 'Без имени'
 const initialsOf = (p: Profile) => (`${p.firstName?.[0] ?? ''}${p.lastName?.[0] ?? ''}`.toUpperCase() || 'AP')
-const stars = (p: Profile) => (p.achievements ?? []).length
 
 function Ava({ p, size = 40 }: { p: Profile; size?: number }) {
   return <span className="avatar" style={{ width: size, height: size, fontSize: size * 0.34 }}>{p.avatar ? <img src={p.avatar} alt="" /> : initialsOf(p)}</span>
 }
 
-export default function Leaders({ onOpenMember }: { onOpenMember?: (id: string) => void }) {
+export default function Leaders({ catalog, onOpenMember }: { catalog: Catalog | null; onOpenMember?: (id: string) => void }) {
   const [rows, setRows] = useState<Profile[] | null>(null)
+  const cat = catalog?.achievements ?? []
+  const stars = (p: Profile) => computeStars(p, cat)
 
   useEffect(() => {
     getProfiles()
-      .then((list) => setRows([...list].sort((a, b) => stars(b) - stars(a) || nameOf(a).localeCompare(nameOf(b)))))
+      .then((list) => setRows([...list].sort((a, b) => computeStars(b, cat) - computeStars(a, cat) || nameOf(a).localeCompare(nameOf(b)))))
       .catch(() => setRows([]))
-  }, [])
+  }, [catalog])
 
   const medal = ['🥇', '🥈', '🥉']
 

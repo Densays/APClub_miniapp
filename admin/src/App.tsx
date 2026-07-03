@@ -83,7 +83,7 @@ function Shell({ catalog, theme, onToggleTheme, onCatalogChange, onLogout }: {
     switch (section) {
       case 'dashboard': return <Dashboard onOpenMember={openMember} />
       case 'members': return <Members catalog={catalog} openId={openMemberId} onConsumedOpen={() => setOpenMemberId(null)} />
-      case 'leaders': return <Leaders onOpenMember={openMember} />
+      case 'leaders': return <Leaders catalog={catalog} onOpenMember={openMember} />
       case 'showcase': return <ShowcaseAdmin />
       case 'achievements': return <AchievementsAdmin only="money" onSaved={onCatalogChange} />
       case 'roles': return <AchievementsAdmin only="role" onSaved={onCatalogChange} />

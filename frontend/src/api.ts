@@ -31,6 +31,7 @@ export type ProfileData = {
   allowMessages?: boolean
   showProfile?: boolean
   achievements?: string[]
+  roleTiers?: Record<string, number>
 }
 
 // Сырая строка initData для подписи на сервере. Вне Telegram — 'dev'

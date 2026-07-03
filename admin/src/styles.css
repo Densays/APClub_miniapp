@@ -147,6 +147,20 @@ textarea.input { resize: vertical; }
 .ach.on .ach-i { filter: none; }
 .ach-t { font-size: 12.5px; line-height: 1.2; }
 
+/* Роли — прогресс по тирам 0..5 */
+.role-list { display: flex; flex-direction: column; gap: 8px; }
+.role-row { display: flex; align-items: center; gap: 10px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; }
+.role-row.maxed { background: var(--gold-soft); border-color: var(--gold); }
+.role-i { font-size: 16px; filter: grayscale(1) opacity(.5); }
+.role-row.maxed .role-i { filter: none; }
+.role-t { flex: 1; font-size: 12.5px; line-height: 1.2; color: var(--gray); min-width: 0; }
+.role-row.maxed .role-t { color: var(--text); }
+.role-tiers { display: flex; gap: 4px; flex-shrink: 0; }
+.role-tier { width: 26px; height: 26px; border-radius: 7px; border: 1px solid var(--line); background: var(--bg); color: var(--gray2); font-size: 12px; font-weight: 600; cursor: pointer; transition: .12s; }
+.role-tier:hover { border-color: rgba(224, 206, 156, .4); }
+.role-tier.fill { background: var(--gold-soft); color: var(--text); border-color: var(--gold); }
+.role-tier.sel { outline: 2px solid var(--gold); outline-offset: 1px; }
+
 /* ── Tags (grants) ────────────────────────────────────────────── */
 .tags { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 10px; }
 .tag { display: inline-flex; align-items: center; gap: 6px; background: var(--gold-soft); color: var(--gold); border: 1px solid rgba(224, 206, 156, .3); border-radius: 999px; padding: 4px 6px 4px 12px; font-size: 12.5px; }

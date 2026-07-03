@@ -42,6 +42,12 @@
   font-weight: 700;
   margin: 8px 4px 0;
 }
+.ach-hint {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin: -8px 4px 0;
+  line-height: 1.35;
+}
 
 .ach-grid {
   display: grid;
@@ -87,6 +93,20 @@
   color: var(--text-muted);
   font-weight: 600;
 }
+
+/* Тир-прогресс роли */
+.ach-tier-bar {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+}
+.ach-tier-pip {
+  width: 12px;
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.12);
+}
+.ach-tier-pip.on { background: var(--gold); }
 
 /* Полученная ачивка — золотая, «загорается» */
 .ach-card.is-earned {

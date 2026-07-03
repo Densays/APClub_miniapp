@@ -4,6 +4,7 @@ import Header from '../components/Header'
 import { getProfiles } from '../api'
 import type { ProfileData } from '../api'
 import { useAchievements } from '../catalog'
+import { computeStars } from '../stars'
 import Stars from '../components/Stars'
 
 const MEDALS = ['🥇', '🥈', '🥉']
@@ -14,26 +15,25 @@ function nameOf(p: ProfileData) {
 function initialsOf(p: ProfileData) {
   return `${p.firstName?.[0] ?? ''}${p.lastName?.[0] ?? ''}` || 'AP'
 }
-function countOf(p: ProfileData) {
-  return p.achievements?.length ?? 0
-}
 
 export default function Leaderboard({ onBack, onOpenMember }: { onBack?: () => void; onOpenMember?: (id: string) => void }) {
   const [rows, setRows] = useState<ProfileData[] | null>(null)
   const [error, setError] = useState(false)
-  const TOTAL_ACH = useAchievements().length
+  const catalog = useAchievements()
+  const TOTAL_ACH = catalog.length
+  const countOf = (p: ProfileData) => computeStars(p, catalog)
 
   useEffect(() => {
     let alive = true
     getProfiles()
       .then((list) => {
         if (!alive) return
-        const sorted = [...list].sort((a, b) => countOf(b) - countOf(a) || nameOf(a).localeCompare(nameOf(b)))
+        const sorted = [...list].sort((a, b) => computeStars(b, catalog) - computeStars(a, catalog) || nameOf(a).localeCompare(nameOf(b)))
         setRows(sorted)
       })
       .catch(() => { if (alive) setError(true) })
     return () => { alive = false }
-  }, [])
+  }, [catalog])
 
   const top3 = rows?.slice(0, 3) ?? []
   // Порядок мест на подиуме: 2 · 1 · 3

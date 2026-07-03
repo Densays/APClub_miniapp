@@ -43,6 +43,7 @@ export type Profile = {
   allowMessages?: boolean
   showProfile?: boolean
   achievements?: string[]
+  roleTiers?: Record<string, number>
   grants?: string[]
   activatedAt?: number
   bonusMonths?: number

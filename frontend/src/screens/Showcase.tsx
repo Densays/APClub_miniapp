@@ -3,19 +3,21 @@ import './Showcase.css'
 import Header from '../components/Header'
 import Stars from '../components/Stars'
 import { clubPerks } from '../mock'
-import { getMyProfile, getShowcase, type Perk } from '../api'
+import { getMyProfile, getShowcase, type Perk, type ProfileData } from '../api'
 import { useAchievements } from '../catalog'
+import { computeStars } from '../stars'
 
 export default function Showcase({ onBack }: { onBack?: () => void }) {
-  const [stars, setStars] = useState(0)
+  const [profile, setProfile] = useState<ProfileData | null>(null)
   const CATALOG = useAchievements()
+  const stars = computeStars(profile, CATALOG)
   // Перки берём из БД (то, что настроено в админке); mock — фолбэк.
   const [perks, setPerks] = useState<Perk[]>(clubPerks)
 
   useEffect(() => {
     let alive = true
     getMyProfile()
-      .then(({ profile }) => { if (alive) setStars((profile.achievements ?? []).length) })
+      .then(({ profile }) => { if (alive) setProfile(profile) })
       .catch(() => {})
     getShowcase()
       .then((list) => { if (alive && list.length) setPerks(list) })

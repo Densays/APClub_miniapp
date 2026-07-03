@@ -4,6 +4,7 @@ import Header from '../components/Header'
 import { getProfileById } from '../api'
 import type { ProfileData } from '../api'
 import { useAchievements } from '../catalog'
+import { starItems } from '../stars'
 import Stars from '../components/Stars'
 
 function PinIcon() {
@@ -51,8 +52,8 @@ export default function MemberProfile({
   const name = p ? `${p.firstName ?? ''} ${p.lastName ?? ''}`.trim() || 'Участник' : ''
   const initials = p ? `${p.firstName?.[0] ?? ''}${p.lastName?.[0] ?? ''}` || 'AP' : ''
   const socials = SOCIAL_LABELS.filter(({ key }) => p?.social?.[key])
-  const earned = new Set(p?.achievements ?? [])
-  const earnedList = CATALOG.filter((a) => earned.has(a.id))
+  // Звёзды: полученные money-достижения + роли, доведённые до Тира 5.
+  const earnedList = starItems(p, CATALOG)
 
   return (
     <div className="member-profile">

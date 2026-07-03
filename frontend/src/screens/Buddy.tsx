@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import './Buddy.css'
 import Header from '../components/Header'
 import Stars from '../components/Stars'
+import { starItems } from '../stars'
 import { findBuddy, getProfiles } from '../api'
 import type { ProfileData } from '../api'
 import { useAchievements } from '../catalog'
@@ -87,7 +88,7 @@ export default function Buddy({ onBack, onOpenMember }: { onBack?: () => void; o
 
   const spinItem = pool.length ? pool[tick % pool.length] : null
   const orbit = pool.slice(0, 8)
-  const earned = buddy ? CATALOG.filter((a) => (buddy.achievements ?? []).includes(a.id)) : []
+  const earned = starItems(buddy, CATALOG)
 
   return (
     <div className="buddy">
