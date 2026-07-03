@@ -62,4 +62,19 @@ export class SupabaseProfileStore implements ProfileStore {
     const { error } = await this.db.from(TABLE).delete().eq('user_id', userId)
     if (error) throw error
   }
+
+  // Гейт регистрации без вытягивания всей таблицы с base64-аватарами: тянем
+  // ТОЛЬКО user_id + email + признак регистрации (jsonb-проекция), фильтруем в JS.
+  // ~40 байт/строка вместо ~30 КБ (avatar) — снимает O(N²)-нагрузку при наплыве.
+  async emailOwner(emailNorm: string, excludeUserId: string): Promise<string | null> {
+    const { data, error } = await this.db
+      .from(TABLE)
+      .select('user_id, email:data->>email, reg:data->>registeredAt')
+    if (error) throw error
+    for (const row of (data ?? []) as { user_id: string; email: string | null; reg: string | null }[]) {
+      if (row.user_id === excludeUserId || row.user_id.startsWith('__')) continue
+      if (row.reg && String(row.email ?? '').trim().toLowerCase() === emailNorm) return row.user_id
+    }
+    return null
+  }
 }

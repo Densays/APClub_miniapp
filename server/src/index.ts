@@ -347,12 +347,10 @@ app.post('/api/profile/register', ah(async (req, res) => {
   if (allow.length && !allow.includes(emailNorm)) {
     return res.status(403).json({ ok: false, error: 'email_not_allowed' })
   }
-  const everyone = await store.list()
   const meId = String(user.id)
-  const taken = everyone.some(
-    (p) => p.userId !== meId && !isReserved(p.userId) && normEmail(p.email) === emailNorm && p.registeredAt,
-  )
-  if (taken) return res.status(409).json({ ok: false, error: 'email_taken' })
+  // Лёгкий гейт (без вытягивания всей таблицы с аватарами): ищем владельца почты.
+  const owner = await store.emailOwner(emailNorm, meId)
+  if (owner) return res.status(409).json({ ok: false, error: 'email_taken' })
 
   const patch: Partial<Profile> = { firstName, lastName, email, registeredAt: Date.now() }
   if (typeof b.avatar === 'string' && b.avatar) patch.avatar = b.avatar.slice(0, 3_000_000)
@@ -877,11 +875,24 @@ app.post('/api/launch', ah(async (req, res) => {
   const id = String(user.id)
   const now = Date.now()
   const today = dayKey(now)
+  const mk = ymKey(now)
   const prev = await store.get(id)
+  // Счётчики запусков — на СВОЕЙ строке (раньше был общий __stats → lost-update
+  // при массовом наплыве). Каждый пишет только свою запись, кросс-гонки нет.
+  const launchDays = { ...(prev?.launchDays ?? {}) }
+  launchDays[today] = (launchDays[today] ?? 0) + 1
+  // Держим только последние ~40 дней (дашборду нужно 14) — чтобы не рос бесконечно.
+  const keepDays = new Set(Array.from({ length: 40 }, (_, i) => dayKey(now - i * DAY_MS)))
+  for (const k of Object.keys(launchDays)) if (!keepDays.has(k)) delete launchDays[k]
+  const activeMonths = prev?.activeMonths?.includes(mk)
+    ? prev.activeMonths
+    : [...(prev?.activeMonths ?? []), mk].slice(-12)
   const patch: Partial<Profile> = {
     lastSeenAt: now,
     firstSeenAt: prev?.firstSeenAt ?? now,
     launchCount: (prev?.launchCount ?? 0) + 1,
+    launchDays,
+    activeMonths,
   }
   // Сохраняем Telegram @username (для ссылки на директ в админке) — при входе
   // он есть в initData. Не user-editable, поэтому пишем сюда, а не в форме.
@@ -892,17 +903,6 @@ app.post('/api/launch', ah(async (req, res) => {
     patch.lastActiveDay = today
   }
   await store.upsert(id, patch)
-  // Служебная запись __stats: суточные запуски + помесячные наборы активных.
-  const stats = (await store.get(STATS_KEY)) as unknown as
-    { daily?: Record<string, number>; monthly?: Record<string, string[]> } | null
-  const daily = { ...(stats?.daily ?? {}) }
-  daily[today] = (daily[today] ?? 0) + 1
-  const monthly = { ...(stats?.monthly ?? {}) }
-  const mk = ymKey(now)
-  const set = new Set(monthly[mk] ?? [])
-  set.add(id)
-  monthly[mk] = [...set]
-  await store.upsert(STATS_KEY, { daily, monthly } as unknown as Partial<Profile>)
   res.json({ ok: true })
 }))
 
@@ -920,28 +920,44 @@ app.get('/api/admin/stats', ah(async (req, res) => {
   const retention = base ? Math.round((active.length / base) * 100) : 100
   const churnRate = base ? Math.round((churned.length / base) * 100) : 0
 
-  // Ряд запусков за последние 14 дней.
-  const stats = (await store.get(STATS_KEY)) as unknown as
+  // Ряд запусков за 14 дней. Источник — launchDays на строках участников (новое,
+  // без гонок) + старый общий __stats (legacy, чтобы не потерять историю до перехода).
+  // Каждый запуск писался ровно в одно место (до перехода — в __stats, после — в
+  // launchDays), поэтому суммирование не даёт двойного счёта.
+  const legacy = (await store.get(STATS_KEY)) as unknown as
     { daily?: Record<string, number>; monthly?: Record<string, string[]> } | null
-  const daily = stats?.daily ?? {}
+  const legacyDaily = legacy?.daily ?? {}
+  const legacyMonthly = legacy?.monthly ?? {}
+  const launchesOn = (day: string): number => {
+    let n = legacyDaily[day] ?? 0
+    for (const m of members) n += m.launchDays?.[day] ?? 0
+    return n
+  }
   const series: { date: string; launches: number }[] = []
   for (let i = 13; i >= 0; i--) {
     const key = dayKey(now - i * DAY_MS)
-    series.push({ date: key, launches: daily[key] ?? 0 })
+    series.push({ date: key, launches: launchesOn(key) })
   }
-  const totalLaunches = Object.values(daily).reduce((s, n) => s + n, 0)
-  const todayLaunches = daily[dayKey(now)] ?? 0
+  // Всего запусков (all-time) — сумма launchCount участников (тоже без гонок).
+  const totalLaunches = members.reduce((s, m) => s + (m.launchCount ?? 0), 0)
+  const todayLaunches = launchesOn(dayKey(now))
 
   // Тренды retention/churn по месяцам (6 месяцев). Считаем месяц-к-месяцу:
   // retention(M) = доля активных прошлого месяца, вернувшихся в этом.
-  const monthly = stats?.monthly ?? {}
+  // Набор активных за месяц = legacy __stats.monthly ∪ участники с этим месяцем
+  // в activeMonths.
+  const activeSet = (ym: string): Set<string> => {
+    const s = new Set<string>(legacyMonthly[ym] ?? [])
+    for (const m of members) if (m.activeMonths?.includes(ym)) s.add(m.userId)
+    return s
+  }
   const retentionSeries: { period: string; value: number | null }[] = []
   const churnSeries: { period: string; value: number | null }[] = []
   for (let i = 5; i >= 0; i--) {
     const cur = ymKey(now, -i)
     const prevKey = ymKey(now, -i - 1)
-    const prevActive = monthly[prevKey] ?? []
-    const curSet = new Set(monthly[cur] ?? [])
+    const prevActive = [...activeSet(prevKey)]
+    const curSet = activeSet(cur)
     let ret: number | null = null
     if (prevActive.length) {
       const returned = prevActive.filter((u) => curSet.has(u)).length

@@ -71,6 +71,10 @@ export type Profile = {
   launchCount?: number // всего запусков
   activeDays?: number // на скольких разных днях запускал (для вовлечённости)
   lastActiveDay?: string // последний день активности (YYYY-MM-DD) для подсчёта activeDays
+  // Запуски по дням на СВОЕЙ строке (вместо общего __stats — без гонки при наплыве).
+  // Прунится до последних ~40 дней. Дашборд суммирует по всем участникам.
+  launchDays?: Record<string, number> // { 'YYYY-MM-DD': count }
+  activeMonths?: string[] // месяцы активности 'YYYY-MM' (для retention/churn)
   // Регистрация (гейт входа): заполняется при первом онбординге в мини-аппе.
   email?: string // почта — для проверки доступа на платформе
   registeredAt?: number // момент завершения регистрации (есть → онбординг пройден)
@@ -109,6 +113,10 @@ export interface ProfileStore {
   list(): Promise<Profile[]>
   upsert(userId: string, patch: Partial<Profile>): Promise<Profile>
   remove(userId: string): Promise<void>
+  // Лёгкий гейт регистрации: userId зарегистрированного профиля с этой
+  // (нормализованной) почтой, кроме excludeUserId. НЕ тянет avatar/полные
+  // профили. null — почта свободна. Заменяет тяжёлый list() в /register.
+  emailOwner(emailNorm: string, excludeUserId: string): Promise<string | null>
 }
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -165,6 +173,15 @@ class FileProfileStore implements ProfileStore {
       delete all[userId]
       await this.persist()
     }
+  }
+
+  async emailOwner(emailNorm: string, excludeUserId: string): Promise<string | null> {
+    const all = await this.load()
+    for (const [uid, p] of Object.entries(all)) {
+      if (uid === excludeUserId || uid.startsWith('__')) continue
+      if (p.registeredAt && String(p.email ?? '').trim().toLowerCase() === emailNorm) return uid
+    }
+    return null
   }
 }
 
