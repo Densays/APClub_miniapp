@@ -216,3 +216,11 @@ export async function getShowcase(): Promise<Perk[]> {
   if (!r.ok) throw new Error(`showcase load failed: ${r.status}`)
   return ((await r.json()).perks as Perk[]) ?? []
 }
+// Сохранить витрину (админ — из мобильной админки, Telegram-авторизация).
+export async function saveShowcase(perks: Perk[]): Promise<Perk[]> {
+  const r = await fetch(`${API_BASE}/api/admin/showcase`, {
+    method: 'PUT', headers: authHeaders(), body: JSON.stringify({ perks }),
+  })
+  if (!r.ok) throw new Error(`showcase save failed: ${r.status}`)
+  return ((await r.json()).perks as Perk[]) ?? []
+}

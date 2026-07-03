@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import './Admin.css'
 import Header from '../components/Header'
 import { achievements as CATALOG } from '../mock'
-import { getProfiles, adminUpdateProfile } from '../api'
-import type { ProfileData } from '../api'
+import { getProfiles, adminUpdateProfile, getShowcase, saveShowcase } from '../api'
+import type { ProfileData, Perk } from '../api'
 
 const nameOf = (p: ProfileData) => `${p.firstName ?? ''} ${p.lastName ?? ''}`.trim() || 'Участник'
 const initialsOf = (p: ProfileData) => `${p.firstName?.[0] ?? ''}${p.lastName?.[0] ?? ''}` || 'AP'
@@ -14,10 +14,21 @@ export default function Admin({ onBack }: { onBack?: () => void }) {
   const [ach, setAch] = useState<Set<string>>(new Set())
   const [month, setMonth] = useState(0)
   const [msg, setMsg] = useState('')
+  const [perks, setPerks] = useState<Perk[]>([])
+  const [scMsg, setScMsg] = useState('')
 
   useEffect(() => {
     getProfiles().then(setUsers).catch(() => setUsers([]))
+    getShowcase().then(setPerks).catch(() => {})
   }, [])
+
+  const editPerk = (i: number, patch: Partial<Perk>) => setPerks((ps) => ps.map((p, j) => (j === i ? { ...p, ...patch } : p)))
+  const addPerk = () => setPerks((ps) => [...ps, { stars: 1, title: '', icon: '🎁' }])
+  const removePerk = (i: number) => setPerks((ps) => ps.filter((_, j) => j !== i))
+  async function saveSc() {
+    try { setPerks(await saveShowcase(perks.filter((p) => p.title.trim()).sort((a, b) => a.stars - b.stars))); setScMsg('Витрина сохранена ✓') }
+    catch { setScMsg('Ошибка сохранения') }
+  }
 
   function pick(u: ProfileData) {
     setSel(u)
@@ -60,7 +71,24 @@ export default function Admin({ onBack }: { onBack?: () => void }) {
         <Header title="Админ-панель" onBack={onBack} />
         <div className="ad-body">
           <button className="ad-back" onClick={onBack}>‹ Назад</button>
-          <div className="ad-title">Участники ({users?.length ?? 0})</div>
+
+          {/* Витрина клуба */}
+          <div className="ad-title">Витрина клуба</div>
+          {scMsg && <div className="ad-msg">{scMsg}</div>}
+          {perks.map((p, i) => (
+            <div className="ad-perk" key={i}>
+              <input className="ad-perk-icon" value={p.icon} onChange={(e) => editPerk(i, { icon: e.target.value })} />
+              <input className="ad-perk-star" type="number" min={0} value={p.stars} onChange={(e) => editPerk(i, { stars: Math.max(0, Number(e.target.value)) })} />
+              <input className="ad-perk-title" placeholder="Название перка" value={p.title} onChange={(e) => editPerk(i, { title: e.target.value })} />
+              <button className="ad-perk-x" onClick={() => removePerk(i)}>×</button>
+            </div>
+          ))}
+          <div className="ad-row">
+            <button className="ad-btn-ghost" onClick={addPerk}>+ Перк</button>
+            <button className="ad-btn" onClick={saveSc}>Сохранить витрину</button>
+          </div>
+
+          <div className="ad-title" style={{ marginTop: 18 }}>Участники ({users?.length ?? 0})</div>
           {users === null && <div className="ad-empty">Загрузка…</div>}
           {users?.map((u) => (
             <button className="ad-user" key={u.userId} onClick={() => pick(u)}>
