@@ -342,13 +342,20 @@ export async function saveAllowlist(emails: string[]): Promise<string[]> {
   return ((await r.json()).emails as string[]) ?? []
 }
 
-export type PairRow = { a: string; aName: string; b: string; bName: string }
-export async function getAdminPairs(): Promise<{ buddies: PairRow[]; matches: PairRow[] }> {
+export type BuddyMember = { id: string; name: string; buddyId: string; buddyName: string }
+export async function getAdminPairs(): Promise<BuddyMember[]> {
   const r = await fetch(`${API_BASE}/api/admin/pairs`, { headers: headers() })
   if (r.status === 401) throw new Error('unauth')
-  if (!r.ok) throw new Error(`Пары не загрузились (${r.status})`)
-  const d = await r.json()
-  return { buddies: d.buddies ?? [], matches: d.matches ?? [] }
+  if (!r.ok) throw new Error(`Список не загрузился (${r.status})`)
+  return ((await r.json()).members as BuddyMember[]) ?? []
+}
+// Изменить бадди: buddyId='' — авто, '<id>' — вручную, null — снять.
+export async function setBuddy(userId: string, buddyId: string | null): Promise<{ buddyId: string; buddyName: string; empty?: boolean }> {
+  const r = await fetch(`${API_BASE}/api/admin/buddy`, {
+    method: 'POST', headers: headers(), body: JSON.stringify({ userId, buddyId }),
+  })
+  if (!r.ok) throw new Error(`Не удалось изменить (${r.status})`)
+  return (await r.json()) as { buddyId: string; buddyName: string; empty?: boolean }
 }
 
 export async function getShowcase(): Promise<Perk[]> {

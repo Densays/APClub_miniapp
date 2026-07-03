@@ -982,30 +982,44 @@ app.post('/api/buddy', ah(async (req, res) => {
   res.json({ ok: true, month, alreadyChosen: false, buddy: pick })
 }))
 
-// Геймификация для админа: пары бадди (текущий месяц) + взаимные мэтчи нетворкинга.
+const buddyName = (p?: Profile | null) => (p ? (`${p.firstName ?? ''} ${p.lastName ?? ''}`.trim() || p.userId) : '')
+// Геймификация для админа: список резидентов и их бадди текущего месяца (редактируемо).
 app.get('/api/admin/pairs', ah(async (req, res) => {
   if (!(await requireAdmin(req, res))) return
   const all = onlyMembers(await store.list())
   const byId = new Map(all.map((p) => [p.userId, p]))
-  const nm = (id?: string) => { const p = id ? byId.get(id) : null; return p ? (`${p.firstName ?? ''} ${p.lastName ?? ''}`.trim() || id) : id }
   const month = monthKey()
-  // Бадди текущего месяца (A выбрал B)
-  const buddies = all
-    .filter((p) => p.buddy && p.buddy.month === month && byId.has(p.buddy.userId))
-    .map((p) => ({ a: p.userId, aName: nm(p.userId), b: p.buddy!.userId, bName: nm(p.buddy!.userId) }))
-  // Взаимные мэтчи нетворкинга (A лайкнул B и B лайкнул A), без дублей пар
-  const matches: { a: string; aName: string; b: string; bName: string }[] = []
-  const seen = new Set<string>()
-  for (const p of all) {
-    for (const likeId of p.coffeeLikes ?? []) {
-      const t = byId.get(likeId)
-      if (t && (t.coffeeLikes ?? []).includes(p.userId)) {
-        const key = [p.userId, likeId].sort().join(':')
-        if (!seen.has(key)) { seen.add(key); matches.push({ a: p.userId, aName: nm(p.userId), b: likeId, bName: nm(likeId) }) }
-      }
-    }
+  const members = all
+    .filter((p) => p.registeredAt)
+    .map((p) => {
+      const b = p.buddy && p.buddy.month === month ? byId.get(p.buddy.userId) : null
+      return { id: p.userId, name: buddyName(p), buddyId: b ? b.userId : '', buddyName: buddyName(b) }
+    })
+    .sort((a, b) => a.name.localeCompare(b.name))
+  res.json({ ok: true, members })
+}))
+
+// Изменить бадди резидента: buddyId '' → авто-перераспределение (случайный),
+// buddyId=<id> → ручной выбор, buddyId=null → снять бадди. Текущий месяц.
+app.post('/api/admin/buddy', ah(async (req, res) => {
+  if (!(await requireAdmin(req, res))) return
+  const body = (req.body ?? {}) as { userId?: string; buddyId?: string | null }
+  const uid = String(body.userId ?? '')
+  if (!uid || isReserved(uid)) return res.status(400).json({ ok: false, error: 'bad_user' })
+  const month = monthKey()
+  if (body.buddyId === null) {
+    await store.upsert(uid, { buddy: undefined })
+    return res.json({ ok: true, buddyId: '', buddyName: '' })
   }
-  res.json({ ok: true, buddies, matches })
+  let bid = String(body.buddyId ?? '')
+  if (!bid) {
+    const cands = onlyMembers(await store.list()).filter((p) => p.userId !== uid && p.showProfile !== false && p.registeredAt)
+    if (!cands.length) return res.json({ ok: true, empty: true })
+    bid = cands[Math.floor(Math.random() * cands.length)].userId
+  }
+  await store.upsert(uid, { buddy: { month, userId: bid } })
+  const b = await store.get(bid)
+  res.json({ ok: true, buddyId: bid, buddyName: buddyName(b) })
 }))
 
 // ── Запуск ────────────────────────────────────────────────────────────────────
