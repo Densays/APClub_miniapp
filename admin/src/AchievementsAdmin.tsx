@@ -60,15 +60,8 @@ export default function AchievementsAdmin({ onSaved, only }: { onSaved?: (items:
               <div className="perk ach-row" key={a.id}>
                 <input className="input perk-icon" value={a.icon} onChange={(e) => edit(i, { icon: e.target.value })} maxLength={4} />
                 <div className="perk-title">
-                  <label>Название достижения</label>
-                  <input className="input" value={a.title} onChange={(e) => edit(i, { title: e.target.value })} placeholder="Напр. Первые $1 000" />
-                </div>
-                <div className="perk-title ach-grp">
-                  <label>Категория</label>
-                  <select className="input" value={a.group} onChange={(e) => edit(i, { group: e.target.value as 'money' | 'role' })}>
-                    <option value="money">За деньги / трейдинг</option>
-                    <option value="role">Роль в клубе</option>
-                  </select>
+                  <label>{g.key === 'role' ? 'Название роли' : 'Название достижения'}</label>
+                  <input className="input" value={a.title} onChange={(e) => edit(i, { title: e.target.value })} placeholder={g.key === 'role' ? 'Напр. Инсайдер клуба' : 'Напр. Первые $1 000'} />
                 </div>
                 <button className="btn btn-danger sm" onClick={() => del(i)}>Удалить</button>
               </div>
