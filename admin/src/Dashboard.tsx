@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { getStats, getProfiles, type Stats, type Profile } from './api'
 import Icon from './Icon'
 import LineChart from './LineChart'
+import { TgButton } from './TgButton'
 
 const DAY = 86400000
 const PERIOD_LABEL: Record<string, string> = { monthly: 'мес', quarterly: 'квартал', semiannual: 'полгода', annual: 'год' }
@@ -125,12 +126,15 @@ export default function Dashboard({ onOpenMember }: { onOpenMember?: (id: string
                     const urg = Math.max(0.05, Math.min(1, 1 - d / 90))
                     const cls = d <= 7 ? 'red' : d <= 30 ? 'warn' : 'ok'
                     return (
-                      <button className="pay-row" key={m.userId} onClick={() => onOpenMember?.(m.userId)} title="Открыть участника">
-                        <span className="pay-name">{nameOf(m)}</span>
-                        <span className="pay-meta">{fmtDate(m.accessUntil as number)}{m.billingPeriod ? ` · ${PERIOD_LABEL[m.billingPeriod]}` : ''}</span>
-                        <span className="pay-bar"><span className={`pay-fill ${cls}`} style={{ width: `${urg * 100}%` }} /></span>
-                        <span className={`pay-days ${cls}`}>{d <= 0 ? 'сегодня' : `${d} дн`}</span>
-                      </button>
+                      <div className="pay-row-wrap" key={m.userId}>
+                        <button className="pay-row" onClick={() => onOpenMember?.(m.userId)} title="Открыть участника">
+                          <span className="pay-name">{nameOf(m)}</span>
+                          <span className="pay-meta">{fmtDate(m.accessUntil as number)}{m.billingPeriod ? ` · ${PERIOD_LABEL[m.billingPeriod]}` : ''}</span>
+                          <span className="pay-bar"><span className={`pay-fill ${cls}`} style={{ width: `${urg * 100}%` }} /></span>
+                          <span className={`pay-days ${cls}`}>{d <= 0 ? 'сегодня' : `${d} дн`}</span>
+                        </button>
+                        <TgButton p={m} />
+                      </div>
                     )
                   })}
                 </div>
@@ -145,12 +149,15 @@ export default function Dashboard({ onOpenMember }: { onOpenMember?: (id: string
                   {overdue.map((m) => {
                     const d = -daysTo(m.accessUntil as number)
                     return (
-                      <button className="pay-row overdue" key={m.userId} onClick={() => onOpenMember?.(m.userId)} title="Открыть участника">
-                        <span className="pay-name">{nameOf(m)}</span>
-                        <span className="pay-meta">{fmtDate(m.accessUntil as number)}{m.billingPeriod ? ` · ${PERIOD_LABEL[m.billingPeriod]}` : ''}</span>
-                        <span className="pay-bar"><span className="pay-fill red" style={{ width: '100%' }} /></span>
-                        <span className="pay-days red">просрочено {d} дн</span>
-                      </button>
+                      <div className="pay-row-wrap" key={m.userId}>
+                        <button className="pay-row overdue" onClick={() => onOpenMember?.(m.userId)} title="Открыть участника">
+                          <span className="pay-name">{nameOf(m)}</span>
+                          <span className="pay-meta">{fmtDate(m.accessUntil as number)}{m.billingPeriod ? ` · ${PERIOD_LABEL[m.billingPeriod]}` : ''}</span>
+                          <span className="pay-bar"><span className="pay-fill red" style={{ width: '100%' }} /></span>
+                          <span className="pay-days red">просрочено {d} дн</span>
+                        </button>
+                        <TgButton p={m} />
+                      </div>
                     )
                   })}
                 </div>

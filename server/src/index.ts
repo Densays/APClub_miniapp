@@ -582,6 +582,9 @@ app.post('/api/launch', ah(async (req, res) => {
     firstSeenAt: prev?.firstSeenAt ?? now,
     launchCount: (prev?.launchCount ?? 0) + 1,
   }
+  // Сохраняем Telegram @username (для ссылки на директ в админке) — при входе
+  // он есть в initData. Не user-editable, поэтому пишем сюда, а не в форме.
+  if (user.username && user.username !== prev?.username) patch.username = user.username
   // activeDays растёт только на новый календарный день (для вовлечённости).
   if (prev?.lastActiveDay !== today) {
     patch.activeDays = (prev?.activeDays ?? 0) + 1

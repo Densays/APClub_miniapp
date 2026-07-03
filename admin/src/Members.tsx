@@ -5,6 +5,7 @@ import {
   type Profile, type Catalog, type Perk,
 } from './api'
 import { computeStars, TIER_MAX } from './stars'
+import { TgButton } from './TgButton'
 
 const PERIODS: { key: NonNullable<Profile['billingPeriod']>; label: string }[] = [
   { key: 'monthly', label: 'Ежемесячно' },
@@ -104,6 +105,7 @@ export default function Members({ catalog, openId, onConsumedOpen, onLevelsChang
                 <span className="td-name-1">{nameOf(u)}{u.createdBy === 'admin' && <span className="tag-manual">ручной</span>}</span>
                 <span className="td-name-2">{u.username ? `@${u.username}` : `id ${u.userId}`}</span>
               </span>
+              <TgButton p={u} />
             </span>
             <span className="td-col"><b className="gold">★ {computeStars(u, catalog?.achievements ?? [])}</b></span>
             <span className="td-col">{u.unlock?.current ?? 0}/12</span>
@@ -300,6 +302,7 @@ function MemberCard({ user, catalog, onBack, onUpdate, onDelete, onLevelsChange 
           <div className="hero-name">{nameOf(form)}</div>
           <div className="hero-sub">{form.username ? `@${form.username} · ` : ''}id {user.userId}{user.createdBy === 'admin' ? ' · ручной' : ''}</div>
         </div>
+        <TgButton p={user} label />
       </div>
       {msg && <div className="msg">{msg}</div>}
 

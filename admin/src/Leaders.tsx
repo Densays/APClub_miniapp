@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { getProfiles, type Profile, type Catalog } from './api'
 import { computeStars } from './stars'
+import { TgButton } from './TgButton'
 
 const nameOf = (p: Profile) => `${p.firstName ?? ''} ${p.lastName ?? ''}`.trim() || 'Без имени'
 const initialsOf = (p: Profile) => (`${p.firstName?.[0] ?? ''}${p.lastName?.[0] ?? ''}`.toUpperCase() || 'AP')
@@ -43,6 +44,7 @@ export default function Leaders({ catalog, onOpenMember }: { catalog: Catalog | 
                 <Ava p={rows[i]} size={i === 0 ? 66 : 52} />
                 <div className="pod-name">{nameOf(rows[i])}</div>
                 <div className="pod-stars gold">★ {stars(rows[i])}</div>
+                <TgButton p={rows[i]} />
               </div>
             ))}
           </div>
@@ -56,6 +58,7 @@ export default function Leaders({ catalog, onOpenMember }: { catalog: Catalog | 
                     <span className="td-name-1">{nameOf(p)}</span>
                     <span className="td-name-2">{p.username ? `@${p.username}` : `id ${p.userId}`}</span>
                   </span>
+                  <TgButton p={p} />
                 </span>
                 <span className="td-col"><b className="gold">★ {stars(p)}</b></span>
                 {onOpenMember && (
