@@ -248,3 +248,9 @@
   cursor: pointer;
 }
 .pf-subscribe:active { opacity: 0.9; }
+
+.pf-about-occ { font-weight: 700; margin-bottom: 4px; }
+.mp-results { display: flex; gap: 10px; }
+.mp-result { flex: 1; background: rgba(217,185,116,0.08); border: 1px solid var(--gold-border); border-radius: 14px; padding: 10px; text-align: center; }
+.mp-result span { display: block; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+.mp-result b { color: var(--gold); font-size: 1.15rem; }

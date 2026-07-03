@@ -157,10 +157,17 @@ export default function Networking({ onOpenMember }: { onOpenMember?: (id: strin
       {p.occupation && <div className="nw-occ">{p.occupation}</div>}
       {p.city && <div className="nw-city">📍 {p.city}</div>}
       <div className="nw-details">
-        {p.about && <div className="nw-field"><span className="nw-field-l">О себе</span>{p.about}</div>}
-        {p.strengths && <div className="nw-field"><span className="nw-field-l">Сильные стороны</span>{p.strengths}</div>}
-        {p.weaknesses && <div className="nw-field"><span className="nw-field-l">Слабые стороны</span>{p.weaknesses}</div>}
-        {p.canHelp && <div className="nw-field"><span className="nw-field-l">Чем полезен</span>{p.canHelp}</div>}
+        {p.focus && <div className="nw-field"><span className="nw-field-l">💡 Сейчас в фокусе</span>{p.focus}</div>}
+        {p.strategies && <div className="nw-field"><span className="nw-field-l">Стратегии</span>{p.strategies}</div>}
+        {p.directions && <div className="nw-field"><span className="nw-field-l">Направления</span>{p.directions}</div>}
+        {p.topics && <div className="nw-field"><span className="nw-field-l">☕ Темы для обсуждения</span>{p.topics}</div>}
+        {p.offer && <div className="nw-field"><span className="nw-field-l">Что могу предложить</span>{p.offer}</div>}
+        {(p.avgResult || p.maxResult) && (
+          <div className="nw-results">
+            {p.avgResult && <div className="nw-result"><span>Средний / мес</span><b>{p.avgResult}</b></div>}
+            {p.maxResult && <div className="nw-result"><span>Максимум / мес</span><b>{p.maxResult}</b></div>}
+          </div>
+        )}
         {socialLinks(p).length > 0 && (
           <div className="nw-socials">
             {socialLinks(p).map((s) => (

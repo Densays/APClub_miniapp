@@ -111,3 +111,9 @@
 .nw-overlay-write { margin-top: 6px; width: 100%; background: var(--gold); color: #1a1a1a; border: none; border-radius: 14px; padding: 13px; font-weight: 700; font-size: 1rem; cursor: pointer; }
 .nw-overlay-write:disabled { opacity: 0.4; }
 .nw-overlay-skip { background: none; border: none; color: var(--text-muted); font-size: 0.9rem; cursor: pointer; padding: 4px; }
+
+/* Результаты за месяц */
+.nw-results { display: flex; gap: 10px; margin-top: 2px; }
+.nw-result { flex: 1; background: rgba(217,185,116,0.08); border: 1px solid var(--gold-border); border-radius: 12px; padding: 8px 10px; text-align: center; }
+.nw-result span { display: block; font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+.nw-result b { color: var(--gold); font-size: 1rem; }

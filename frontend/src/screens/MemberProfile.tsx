@@ -16,13 +16,6 @@ function PinIcon() {
     </svg>
   )
 }
-function HeartIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.5-7 10-7 10z" />
-    </svg>
-  )
-}
 
 const SOCIAL_LABELS: { key: keyof NonNullable<ProfileData['social']>; label: string }[] = [
   { key: 'instagram', label: 'Instagram' },
@@ -77,11 +70,17 @@ export default function MemberProfile({
               {p.occupation && <div className="mp-occupation">{p.occupation}</div>}
             </div>
 
-            {(p.about || p.city || p.maritalStatus) && (
+            {(p.focus || p.city) && (
               <div className="mp-card mp-about">
-                {p.about && <div className="mp-about-bio">{p.about}</div>}
+                {p.focus && <div className="mp-about-bio">{p.focus}</div>}
                 {p.city && <div className="mp-row"><PinIcon /><span>{p.city}</span></div>}
-                {p.maritalStatus && <div className="mp-row"><HeartIcon /><span>{p.maritalStatus}</span></div>}
+              </div>
+            )}
+
+            {(p.avgResult || p.maxResult) && (
+              <div className="mp-results">
+                {p.avgResult && <div className="mp-result"><span>Средний / мес</span><b>{p.avgResult}</b></div>}
+                {p.maxResult && <div className="mp-result"><span>Максимум / мес</span><b>{p.maxResult}</b></div>}
               </div>
             )}
 
@@ -106,22 +105,28 @@ export default function MemberProfile({
               </div>
             </div>
 
-            {p.strengths && (
+            {p.strategies && (
               <div className="mp-section">
-                <div className="mp-section-title">Сильные стороны</div>
-                <div className="mp-card mp-text">{p.strengths}</div>
+                <div className="mp-section-title">Стратегии</div>
+                <div className="mp-card mp-text">{p.strategies}</div>
               </div>
             )}
-            {p.weaknesses && (
+            {p.directions && (
               <div className="mp-section">
-                <div className="mp-section-title">Слабые стороны</div>
-                <div className="mp-card mp-text">{p.weaknesses}</div>
+                <div className="mp-section-title">Направления</div>
+                <div className="mp-card mp-text">{p.directions}</div>
               </div>
             )}
-            {p.canHelp && (
+            {p.topics && (
               <div className="mp-section">
-                <div className="mp-section-title">Чем может быть полезен</div>
-                <div className="mp-card mp-text">{p.canHelp}</div>
+                <div className="mp-section-title">Темы для обсуждения</div>
+                <div className="mp-card mp-text">{p.topics}</div>
+              </div>
+            )}
+            {p.offer && (
+              <div className="mp-section">
+                <div className="mp-section-title">Что может предложить</div>
+                <div className="mp-card mp-text">{p.offer}</div>
               </div>
             )}
 

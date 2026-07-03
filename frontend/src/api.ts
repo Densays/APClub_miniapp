@@ -24,6 +24,13 @@ export type ProfileData = {
   about?: string
   maritalStatus?: string
   occupation?: string
+  focus?: string
+  strategies?: string
+  directions?: string
+  topics?: string
+  offer?: string
+  avgResult?: string
+  maxResult?: string
   strengths?: string
   weaknesses?: string
   canHelp?: string

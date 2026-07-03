@@ -174,3 +174,5 @@
 }
 .ep-save:disabled { opacity: 0.6; cursor: default; }
 .ep-save:active { opacity: 0.9; }
+
+.ep-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }

@@ -25,13 +25,6 @@ function PinIcon() {
   )
 }
 
-function HeartIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.5-7 10-7 10z" />
-    </svg>
-  )
-}
 
 function MailIcon() {
   return (
@@ -118,9 +111,9 @@ export default function Profile({
   const avatar = profile?.avatar || tg.avatar
   const initials = `${(profile?.firstName || tg.firstName)[0] ?? ''}${(profile?.lastName || tg.lastName)[0] ?? ''}` || 'AP'
   // Реальные данные профиля. НЕ подставляем мок — у нового участника поля пустые.
-  const about = profile?.about ?? ''
+  const focus = profile?.focus ?? ''
+  const occupation = profile?.occupation ?? ''
   const city = profile?.city ?? ''
-  const marital = profile?.maritalStatus ?? ''
   const email = profile?.email ?? ''
 
   return (
@@ -150,12 +143,18 @@ export default function Profile({
         </div>
 
         {/* О себе — только заполненные поля (у нового участника блок пуст) */}
-        {(about || city || marital || email) && (
+        {(focus || occupation || city || email) && (
           <div className="pf-about">
-            {about && <div className="pf-about-bio">{about}</div>}
+            {occupation && <div className="pf-about-occ">{occupation}</div>}
+            {focus && <div className="pf-about-bio">{focus}</div>}
             {city && <div className="pf-about-row"><PinIcon /><span>{city}</span></div>}
-            {marital && <div className="pf-about-row"><HeartIcon /><span>{marital}</span></div>}
             {email && <div className="pf-about-row"><MailIcon /><span>{email}</span></div>}
+          </div>
+        )}
+        {(profile?.avgResult || profile?.maxResult) && (
+          <div className="mp-results" style={{ margin: '0 16px 14px' }}>
+            {profile?.avgResult && <div className="mp-result"><span>Средний / мес</span><b>{profile.avgResult}</b></div>}
+            {profile?.maxResult && <div className="mp-result"><span>Максимум / мес</span><b>{profile.maxResult}</b></div>}
           </div>
         )}
 

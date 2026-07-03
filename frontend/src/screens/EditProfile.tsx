@@ -23,15 +23,6 @@ function PinIcon() {
   )
 }
 
-// Максимальная дата рождения — 18 лет назад (аудитория 18+).
-function maxBirthISO(): string {
-  const d = new Date()
-  d.setFullYear(d.getFullYear() - 18)
-  return d.toISOString().slice(0, 10)
-}
-// Дата, с которой открывается календарь, если поле пустое (аудитория ~90-х).
-const DEFAULT_BIRTH_VIEW = '1995-01-01'
-const MIN_BIRTH_ISO = '1940-01-01'
 
 // Уменьшаем выбранное фото до 256×256 и кодируем в data:URL (чтобы не хранить
 // в БД тяжёлые файлы). Дефолтное фото берётся из Telegram, это — замена.
@@ -180,60 +171,53 @@ export default function EditProfile({
           </div>
         </label>
 
-        {/* Дата рождения — календарь, только 18+, открывается в 90-х */}
+        {/* Основная профессиональная деятельность */}
         <label className="ep-field">
-          <span className="ep-label">Дата рождения</span>
-          <input
-            autoComplete="off"
-            className="ep-input ep-date"
-            type="date"
-            value={form.birthDate ?? ''}
-            min={MIN_BIRTH_ISO}
-            max={maxBirthISO()}
-            onFocus={() => { if (!form.birthDate) set('birthDate', DEFAULT_BIRTH_VIEW) }}
-            onChange={(e) => set('birthDate', e.target.value)}
-          />
-          <span className="ep-hint">Только 18+</span>
+          <span className="ep-label">Основная деятельность</span>
+          <input autoComplete="off" className="ep-input" value={form.occupation ?? ''} onChange={(e) => set('occupation', e.target.value)} placeholder="напр. Founder · CleanTech-стартап" />
         </label>
 
-        {/* О себе */}
+        {/* Текущий фокус */}
         <label className="ep-field">
-          <span className="ep-label">О себе</span>
-          <textarea autoComplete="off" className="ep-textarea" rows={3} value={form.about ?? ''} onChange={(e) => set('about', e.target.value)} />
-          <span className="ep-hint">Будет отображаться в шапке профиля</span>
+          <span className="ep-label">Текущий фокус</span>
+          <textarea autoComplete="off" className="ep-textarea" rows={3} value={form.focus ?? ''} onChange={(e) => set('focus', e.target.value)} placeholder="Над чем работаешь сейчас" />
         </label>
 
-        {/* Семейное положение */}
+        {/* Стратегии */}
         <label className="ep-field">
-          <span className="ep-label">Семейное положение</span>
-          <input autoComplete="off" className="ep-input" value={form.maritalStatus ?? ''} onChange={(e) => set('maritalStatus', e.target.value)} />
+          <span className="ep-label">Стратегии</span>
+          <input autoComplete="off" className="ep-input" value={form.strategies ?? ''} onChange={(e) => set('strategies', e.target.value)} placeholder="На чём сосредоточен" />
         </label>
 
-        {/* Должность */}
+        {/* Направления */}
         <label className="ep-field">
-          <span className="ep-label">Чем занимаюсь / должность</span>
-          <input autoComplete="off" className="ep-input" value={form.occupation ?? ''} onChange={(e) => set('occupation', e.target.value)} />
-          <span className="ep-hint">Кратко в свободном формате</span>
+          <span className="ep-label">Направления</span>
+          <input autoComplete="off" className="ep-input" value={form.directions ?? ''} onChange={(e) => set('directions', e.target.value)} />
         </label>
 
-        {/* Сильные стороны */}
+        {/* Темы для обсуждения */}
         <label className="ep-field">
-          <span className="ep-label">Мои сильные стороны</span>
-          <textarea autoComplete="off" className="ep-textarea" rows={3} value={form.strengths ?? ''} onChange={(e) => set('strengths', e.target.value)} />
+          <span className="ep-label">Темы для обсуждения</span>
+          <textarea autoComplete="off" className="ep-textarea" rows={2} value={form.topics ?? ''} onChange={(e) => set('topics', e.target.value)} placeholder="О чём хочешь поговорить" />
         </label>
 
-        {/* Слабые стороны */}
+        {/* Что могу предложить */}
         <label className="ep-field">
-          <span className="ep-label">Мои слабые стороны</span>
-          <textarea autoComplete="off" className="ep-textarea" rows={3} value={form.weaknesses ?? ''} onChange={(e) => set('weaknesses', e.target.value)} />
+          <span className="ep-label">Что могу предложить</span>
+          <textarea autoComplete="off" className="ep-textarea" rows={2} value={form.offer ?? ''} onChange={(e) => set('offer', e.target.value)} />
         </label>
 
-        {/* Чем полезен */}
-        <label className="ep-field">
-          <span className="ep-label">Чем я могу быть полезен</span>
-          <textarea autoComplete="off" className="ep-textarea" rows={3} value={form.canHelp ?? ''} onChange={(e) => set('canHelp', e.target.value)} />
-          <span className="ep-hint">Это поле участвует в поиске</span>
-        </label>
+        {/* Результаты за месяц */}
+        <div className="ep-row2">
+          <label className="ep-field">
+            <span className="ep-label">Средний результат / мес</span>
+            <input autoComplete="off" className="ep-input" value={form.avgResult ?? ''} onChange={(e) => set('avgResult', e.target.value)} placeholder="напр. $1 500" />
+          </label>
+          <label className="ep-field">
+            <span className="ep-label">Максимальный / мес</span>
+            <input autoComplete="off" className="ep-input" value={form.maxResult ?? ''} onChange={(e) => set('maxResult', e.target.value)} placeholder="напр. $6 000" />
+          </label>
+        </div>
 
         {/* Соцсети */}
         <div className="ep-section-title">Мои соц. сети</div>

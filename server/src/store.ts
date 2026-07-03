@@ -32,7 +32,16 @@ export type Profile = {
   birthDate?: string
   about?: string
   maritalStatus?: string
-  occupation?: string
+  occupation?: string // основная профессиональная деятельность
+  // Новый (упрощённый) набор полей профиля:
+  focus?: string // текущий фокус («сейчас в фокусе»)
+  strategies?: string // стратегии, на которых сосредоточен
+  directions?: string // направления
+  topics?: string // темы для обсуждения
+  offer?: string // что может предложить
+  avgResult?: string // средний результат за месяц
+  maxResult?: string // максимальный результат за месяц
+  // Устаревшие (оставлены для обратной совместимости, в форме больше не редактируются):
   strengths?: string
   weaknesses?: string
   canHelp?: string
@@ -74,16 +83,24 @@ export const EDITABLE_FIELDS: (keyof Profile)[] = [
   'email',
   'avatar',
   'city',
-  'birthDate',
-  'about',
-  'maritalStatus',
   'occupation',
-  'strengths',
-  'weaknesses',
-  'canHelp',
+  'focus',
+  'strategies',
+  'directions',
+  'topics',
+  'offer',
+  'avgResult',
+  'maxResult',
   'social',
   'allowMessages',
   'showProfile',
+  // устаревшие (совместимость):
+  'birthDate',
+  'about',
+  'maritalStatus',
+  'strengths',
+  'weaknesses',
+  'canHelp',
 ]
 
 export interface ProfileStore {
