@@ -159,13 +159,11 @@ export default function Networking({ onOpenMember }: { onOpenMember?: (id: strin
       <div className="nw-details">
         {p.focus && <div className="nw-field"><span className="nw-field-l">💡 Сейчас в фокусе</span>{p.focus}</div>}
         {p.strategies && <div className="nw-field"><span className="nw-field-l">Стратегии</span>{p.strategies}</div>}
-        {p.directions && <div className="nw-field"><span className="nw-field-l">Направления</span>{p.directions}</div>}
         {p.topics && <div className="nw-field"><span className="nw-field-l">☕ Темы для обсуждения</span>{p.topics}</div>}
         {p.offer && <div className="nw-field"><span className="nw-field-l">Что могу предложить</span>{p.offer}</div>}
-        {(p.avgResult || p.maxResult) && (
+        {p.maxResult && (
           <div className="nw-results">
-            {p.avgResult && <div className="nw-result"><span>Средний / мес</span><b>{p.avgResult}</b></div>}
-            {p.maxResult && <div className="nw-result"><span>Максимум / мес</span><b>{p.maxResult}</b></div>}
+            <div className="nw-result"><span>Максимум за месяц</span><b>{p.maxResult}</b></div>
           </div>
         )}
         {socialLinks(p).length > 0 && (

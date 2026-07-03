@@ -77,10 +77,9 @@ export default function MemberProfile({
               </div>
             )}
 
-            {(p.avgResult || p.maxResult) && (
+            {p.maxResult && (
               <div className="mp-results">
-                {p.avgResult && <div className="mp-result"><span>Средний / мес</span><b>{p.avgResult}</b></div>}
-                {p.maxResult && <div className="mp-result"><span>Максимум / мес</span><b>{p.maxResult}</b></div>}
+                <div className="mp-result"><span>Максимум за месяц</span><b>{p.maxResult}</b></div>
               </div>
             )}
 
@@ -109,12 +108,6 @@ export default function MemberProfile({
               <div className="mp-section">
                 <div className="mp-section-title">Стратегии</div>
                 <div className="mp-card mp-text">{p.strategies}</div>
-              </div>
-            )}
-            {p.directions && (
-              <div className="mp-section">
-                <div className="mp-section-title">Направления</div>
-                <div className="mp-card mp-text">{p.directions}</div>
               </div>
             )}
             {p.topics && (

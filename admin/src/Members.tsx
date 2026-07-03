@@ -169,11 +169,9 @@ const FIELDS: { key: keyof Profile; label: string; type?: 'textarea' | 'date' }[
   { key: 'occupation', label: 'Основная деятельность' },
   { key: 'focus', label: 'Текущий фокус', type: 'textarea' },
   { key: 'strategies', label: 'Стратегии' },
-  { key: 'directions', label: 'Направления' },
   { key: 'topics', label: 'Темы для обсуждения', type: 'textarea' },
   { key: 'offer', label: 'Что может предложить', type: 'textarea' },
-  { key: 'avgResult', label: 'Средний результат / мес' },
-  { key: 'maxResult', label: 'Максимальный результат / мес' },
+  { key: 'maxResult', label: 'Максимальный результат за месяц' },
 ]
 const SOCIALS: { key: keyof NonNullable<Profile['social']>; label: string }[] = [
   { key: 'instagram', label: 'Instagram' },

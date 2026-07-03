@@ -151,10 +151,9 @@ export default function Profile({
             {email && <div className="pf-about-row"><MailIcon /><span>{email}</span></div>}
           </div>
         )}
-        {(profile?.avgResult || profile?.maxResult) && (
+        {profile?.maxResult && (
           <div className="mp-results" style={{ margin: '0 16px 14px' }}>
-            {profile?.avgResult && <div className="mp-result"><span>Средний / мес</span><b>{profile.avgResult}</b></div>}
-            {profile?.maxResult && <div className="mp-result"><span>Максимум / мес</span><b>{profile.maxResult}</b></div>}
+            <div className="mp-result"><span>Максимум за месяц</span><b>{profile.maxResult}</b></div>
           </div>
         )}
 

@@ -189,12 +189,6 @@ export default function EditProfile({
           <input autoComplete="off" className="ep-input" value={form.strategies ?? ''} onChange={(e) => set('strategies', e.target.value)} placeholder="На чём сосредоточен" />
         </label>
 
-        {/* Направления */}
-        <label className="ep-field">
-          <span className="ep-label">Направления</span>
-          <input autoComplete="off" className="ep-input" value={form.directions ?? ''} onChange={(e) => set('directions', e.target.value)} />
-        </label>
-
         {/* Темы для обсуждения */}
         <label className="ep-field">
           <span className="ep-label">Темы для обсуждения</span>
@@ -207,17 +201,11 @@ export default function EditProfile({
           <textarea autoComplete="off" className="ep-textarea" rows={2} value={form.offer ?? ''} onChange={(e) => set('offer', e.target.value)} />
         </label>
 
-        {/* Результаты за месяц */}
-        <div className="ep-row2">
-          <label className="ep-field">
-            <span className="ep-label">Средний результат / мес</span>
-            <input autoComplete="off" className="ep-input" value={form.avgResult ?? ''} onChange={(e) => set('avgResult', e.target.value)} placeholder="напр. $1 500" />
-          </label>
-          <label className="ep-field">
-            <span className="ep-label">Максимальный / мес</span>
-            <input autoComplete="off" className="ep-input" value={form.maxResult ?? ''} onChange={(e) => set('maxResult', e.target.value)} placeholder="напр. $6 000" />
-          </label>
-        </div>
+        {/* Максимальный результат за месяц */}
+        <label className="ep-field">
+          <span className="ep-label">Максимальный результат за месяц</span>
+          <input autoComplete="off" className="ep-input" value={form.maxResult ?? ''} onChange={(e) => set('maxResult', e.target.value)} placeholder="напр. $6 000" />
+        </label>
 
         {/* Соцсети */}
         <div className="ep-section-title">Мои соц. сети</div>
