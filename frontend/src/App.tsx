@@ -13,6 +13,7 @@ import Networking from './screens/Networking'
 import Showcase from './screens/Showcase'
 import Admin from './screens/Admin'
 import BottomNav from './components/BottomNav'
+import Spinner from './components/Spinner'
 
 type Screen = 'home' | 'profile' | 'edit' | 'community' | 'member' | 'achievements' | 'leaderboard' | 'buddy' | 'networking' | 'showcase' | 'admin'
 
@@ -115,7 +116,7 @@ export default function App() {
   }
 
   if (gate === 'loading') {
-    return <div className="app-gate-loading">Загрузка…</div>
+    return <Spinner full />
   }
   if (gate === 'register') {
     return <Register initial={initProfile} onDone={() => setGate('ready')} />

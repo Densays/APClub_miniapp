@@ -6,6 +6,7 @@ import type { ProfileData } from '../api'
 import { useAchievements } from '../catalog'
 import { starItems } from '../stars'
 import Stars from '../components/Stars'
+import Spinner from '../components/Spinner'
 
 function PinIcon() {
   return (
@@ -63,7 +64,7 @@ export default function MemberProfile({
         <button className="mp-back" onClick={onBack}>‹ Назад</button>
 
         {error && <div className="mp-empty">Профиль недоступен.</div>}
-        {!error && !p && <div className="mp-empty">Загрузка…</div>}
+        {!error && !p && <Spinner />}
 
         {p && (
           <>

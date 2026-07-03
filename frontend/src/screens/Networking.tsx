@@ -7,6 +7,7 @@ import {
 } from '../api'
 import { useCatalog } from '../catalog'
 import { computeStars } from '../stars'
+import Spinner from '../components/Spinner'
 
 type Pending = ProfileData & { pinned?: boolean }
 
@@ -198,7 +199,7 @@ export default function Networking({ onOpenMember }: { onOpenMember?: (id: strin
             </div>
             <div className="nw-stack">
               {error && <div className="nw-empty">Не удалось загрузить. Проверь соединение.</div>}
-              {!error && cards === null && <div className="nw-empty">Загрузка…</div>}
+              {!error && cards === null && <Spinner />}
               {!error && cards && !current && (
                 <div className="nw-empty">
                   Ты пересмотрел всех на сейчас ✨<br />Пропущенные вернутся, появятся новые резиденты.
@@ -220,7 +221,7 @@ export default function Networking({ onOpenMember }: { onOpenMember?: (id: strin
         {view === 'incoming' && (
           <div className="nw-matches">
             <div className="nw-quota">Тебе предложили познакомиться. Подтверди — и появится мэтч со связью в Telegram.</div>
-            {incoming === null && <div className="nw-empty">Загрузка…</div>}
+            {incoming === null && <Spinner />}
             {incoming && incoming.length === 0 && <div className="nw-empty">Пока нет входящих запросов.</div>}
             {incoming && incoming.map((p) => (
               <div className="nw-match-row" key={p.userId}>
@@ -241,7 +242,7 @@ export default function Networking({ onOpenMember }: { onOpenMember?: (id: strin
           <div className="nw-pending">
             <div className="nw-quota">Кого ты пригласил — ждут ответной симпатии. Закрепи до {maxPins} важных (📌) — они наверху.</div>
             {pinMsg && <div className="nw-pin-msg">{pinMsg}</div>}
-            {pending === null && <div className="nw-empty">Загрузка…</div>}
+            {pending === null && <Spinner />}
             {pending && pending.length === 0 && <div className="nw-empty">Пока пусто. Приглашай резидентов на вкладке «Знакомиться».</div>}
             {pending && pending.map((p) => (
               <div className={`nw-prow${p.pinned ? ' pinned' : ''}`} key={p.userId}>

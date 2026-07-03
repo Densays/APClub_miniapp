@@ -5,6 +5,7 @@ import { getProfiles } from '../api'
 import type { ProfileData } from '../api'
 import { useCatalog } from '../catalog'
 import { computeStars } from '../stars'
+import Spinner from '../components/Spinner'
 
 function PinIcon() {
   return (
@@ -49,7 +50,7 @@ export default function Community({ onOpenMember }: { onOpenMember?: (id: string
 
         {error && <div className="cm-empty">Не удалось загрузить список. Проверьте сервер.</div>}
 
-        {!error && members === null && <div className="cm-empty">Загрузка…</div>}
+        {!error && members === null && <Spinner />}
 
         {!error && members && members.length === 0 && (
           <div className="cm-empty">Пока никто не заполнил профиль. Будь первым — открой свой профиль и нажми «Редактировать».</div>

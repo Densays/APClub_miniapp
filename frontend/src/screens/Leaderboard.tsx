@@ -6,6 +6,7 @@ import type { ProfileData } from '../api'
 import { useAchievements } from '../catalog'
 import { computeStars } from '../stars'
 import Stars from '../components/Stars'
+import Spinner from '../components/Spinner'
 
 const MEDALS = ['🥇', '🥈', '🥉']
 
@@ -47,7 +48,7 @@ export default function Leaderboard({ onBack, onOpenMember }: { onBack?: () => v
         <button className="lb-back" onClick={onBack}>‹ Назад</button>
 
         {error && <div className="lb-empty">Не удалось загрузить рейтинг.</div>}
-        {!error && rows === null && <div className="lb-empty">Загрузка…</div>}
+        {!error && rows === null && <Spinner />}
         {!error && rows && rows.length === 0 && (
           <div className="lb-empty">Пока нет участников с профилем.</div>
         )}
