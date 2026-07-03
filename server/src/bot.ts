@@ -28,18 +28,18 @@ const isHttps = (u: string) => /^https:\/\//i.test(u)
 const WELCOME = [
   '<b>Добро пожаловать в APClub!</b> 🎉',
   '',
-  'Рады, что ты с нами. Здесь собрались практики, которые зарабатывают на арбитраже криптоактивов по дельта-нейтральным стратегиям.',
+  'APClub — это сообщество криптоэнтузиастов, которые объединились, чтобы помогать друг другу развивать навыки заработка на арбитраже криптовалют.',
   '',
   '<b>Твои первые шаги:</b>',
-  '1️⃣ Зайди в приложение и заполни свой аккаунт — это важно!',
+  '<blockquote expandable>1️⃣ Зайди в приложение и заполни свой аккаунт — это важно!',
   '2️⃣ Изучи онбординг по клубу.',
-  '3️⃣ Представься в чате — коротко о себе: откуда ты, какой опыт, чего хочешь достичь.',
+  '3️⃣ Представься в чате — коротко о себе: откуда ты, какой опыт, чего хочешь достичь.</blockquote>',
   '',
   '<b>Что тебя ждёт:</b>',
-  '— Совместная практика по сделкам',
+  '<blockquote expandable>— Совместная практика по сделкам',
   '— Онлайн-коворкинг',
   '— Поддержка команды и обмен опытом',
-  '— Инструменты, таблицы, аналитика',
+  '— Инструменты, таблицы, аналитика</blockquote>',
   '',
   'Если есть вопросы — пиши в чат, здесь помогают.',
   '',
@@ -240,7 +240,7 @@ const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms))
 // url-кнопка (web_app в каналах нельзя). Показываем только если задана ссылка.
 function channelKeyboard(): unknown | undefined {
   if (!MINIAPP_LINK) return undefined
-  return { inline_keyboard: [[{ text: '🚀 Вход в клуб', url: MINIAPP_LINK }]] }
+  return { inline_keyboard: [[{ text: '🔓 Вход в клуб', url: MINIAPP_LINK }]] }
 }
 
 // Достаёт @username пользователя через getChat. Работает, если бот уже
@@ -299,13 +299,16 @@ export async function channelStatus(): Promise<ChannelStatus> {
       { ok?: boolean; description?: string; result?: { status?: string; can_post_messages?: boolean; can_pin_messages?: boolean } }
     if (!memD.ok) return { ...base, title: chatD.result?.title, error: memD.description ?? 'member_check_failed' }
     const st = memD.result
-    const isAdmin = st?.status === 'administrator' || st?.status === 'creator'
+    const isCreator = st?.status === 'creator'
+    const isAdmin = st?.status === 'administrator' || isCreator
+    // Строгая проверка: Telegram ОПУСКАЕТ право, если оно не выдано (undefined),
+    // поэтому сверяем именно с true. Создатель канала имеет все права по умолчанию.
     return {
       ...base,
       title: chatD.result?.title,
       isAdmin,
-      canPost: isAdmin && st?.can_post_messages !== false,
-      canPin: isAdmin && st?.can_pin_messages !== false,
+      canPost: isCreator || st?.can_post_messages === true,
+      canPin: isCreator || st?.can_pin_messages === true,
     }
   } catch (e) {
     return { ...base, error: (e as Error).message }
