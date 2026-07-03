@@ -91,10 +91,13 @@ export default function Notifications() {
       .replace(/\{date\}/g, `${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}`)
   }
 
+  // Прогресс длинной (резюмируемой) рассылки: «Отправка… X/N».
+  const progress = (done: number, total: number) => setMsg(total ? `Отправка… ${done}/${total}` : 'Отправка…')
+
   async function send(o: NotifOccurrence, force: boolean) {
     const key = `${o.eventId}:${o.dateKey}`
     setSending(key); setMsg(''); setErr('')
-    try { setMsg(reportText(await sendNotification(o.eventId, o.dateKey, force))); load() }
+    try { setMsg(reportText(await sendNotification(o.eventId, o.dateKey, force, progress))); load() }
     catch (e) { setErr((e as Error).message) }
     finally { setSending('') }
   }
@@ -102,7 +105,7 @@ export default function Notifications() {
   async function sendAll(text: string, image: string | undefined, key: string) {
     if (!text.trim() && !image) { setErr('Пустое уведомление — добавь текст или картинку'); return }
     setSending(key); setMsg(''); setErr('')
-    try { setMsg(reportText(await sendCustomNotification(text, image))) }
+    try { setMsg(reportText(await sendCustomNotification(text, image, progress))) }
     catch (e) { setErr((e as Error).message) }
     finally { setSending('') }
   }

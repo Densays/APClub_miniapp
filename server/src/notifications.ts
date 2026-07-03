@@ -264,8 +264,14 @@ export async function upcoming(days = 7): Promise<Occurrence[]> {
 }
 
 // ── Отправка в Telegram ─────────────────────────────────────────────────────────
-type SendResult = { ok: boolean; error?: string; fileId?: string }
+type SendResult = { ok: boolean; error?: string; fileId?: string; retryAfter?: number }
 const TG = (method: string) => `https://api.telegram.org/bot${BOT_TOKEN}/${method}`
+
+type TgResp = { ok?: boolean; description?: string; parameters?: { retry_after?: number } }
+// Единый разбор ошибки Telegram: достаёт retry_after (429) для устойчивой рассылки.
+function tgError(status: number, data: TgResp): SendResult {
+  return { ok: false, error: data.description ?? `http_${status}`, retryAfter: data.parameters?.retry_after }
+}
 
 // Разбор data:URL (base64) → mime + байты. null, если не картинка.
 function parseDataUrl(dataUrl?: string): { mime: string; buffer: Buffer } | null {
@@ -288,8 +294,8 @@ async function sendText(chatId: string, text: string): Promise<SendResult> {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML', disable_web_page_preview: true }),
     })
-    const data = (await r.json().catch(() => ({}))) as { ok?: boolean; description?: string }
-    if (!r.ok || !data.ok) return { ok: false, error: data.description ?? `http_${r.status}` }
+    const data = (await r.json().catch(() => ({}))) as TgResp
+    if (!r.ok || !data.ok) return tgError(r.status, data)
     return { ok: true }
   } catch (e) {
     return { ok: false, error: (e as Error).message }
@@ -305,8 +311,8 @@ async function sendPhotoById(chatId: string, fileId: string, caption: string): P
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: chatId, photo: fileId, caption, parse_mode: 'HTML' }),
     })
-    const data = (await r.json().catch(() => ({}))) as { ok?: boolean; description?: string }
-    if (!r.ok || !data.ok) return { ok: false, error: data.description ?? `http_${r.status}` }
+    const data = (await r.json().catch(() => ({}))) as TgResp
+    if (!r.ok || !data.ok) return tgError(r.status, data)
     return { ok: true, fileId }
   } catch (e) {
     return { ok: false, error: (e as Error).message }
@@ -325,8 +331,8 @@ async function sendPhotoBytes(chatId: string, buf: Buffer, mime: string, caption
     form.append('photo', new Blob([new Uint8Array(buf)], { type: mime }), `banner.${ext}`)
     const r = await fetch(TG('sendPhoto'), { method: 'POST', body: form })
     const data = (await r.json().catch(() => ({}))) as
-      { ok?: boolean; description?: string; result?: { photo?: { file_id: string }[] } }
-    if (!r.ok || !data.ok) return { ok: false, error: data.description ?? `http_${r.status}` }
+      TgResp & { result?: { photo?: { file_id: string }[] } }
+    if (!r.ok || !data.ok) return tgError(r.status, data)
     const photos = data.result?.photo ?? []
     return { ok: true, fileId: photos.length ? photos[photos.length - 1].file_id : undefined }
   } catch (e) {
@@ -346,6 +352,12 @@ export type SendReport = {
   total: number
   error?: string
   alreadySent?: boolean
+  // Резюмируемая рассылка: если partial=true, обработан не весь список —
+  // повторить вызов с offset=nextOffset (клиент делает это в цикле). retryAfter —
+  // сколько секунд подождать перед продолжением (после 429 от Telegram).
+  partial?: boolean
+  nextOffset?: number
+  retryAfter?: number
 }
 
 // Собрать текст события для конкретной даты (null — событие в этот день не происходит).
@@ -363,13 +375,26 @@ function buildMessage(def: EventDef, dateKey: string, tpl: string, recs: Profile
   })
 }
 
-// Разослать одно сообщение (текст + опц. картинка) всем получателям.
-// Картинку заливаем один раз (первому), дальше переиспользуем file_id.
-async function deliver(recs: Profile[], text: string, image?: string): Promise<SendReport> {
+// Бюджет времени на один проход рассылки — с запасом под лимит serverless-функции
+// (maxDuration 30s). Если не успели — возвращаем partial + nextOffset, клиент
+// продолжит с этого места (следующим вызовом). Так рассылка на 100+ не обрывается.
+const DELIVER_BUDGET_MS = 22_000
+
+// Разослать одно сообщение (текст + опц. картинка) получателям, начиная с offset.
+// Порядок стабилен (сортировка по userId), чтобы offset был валиден между вызовами.
+// Картинку заливаем один раз (первому в проходе), дальше переиспользуем file_id.
+async function deliver(recs: Profile[], text: string, image?: string, startOffset = 0): Promise<SendReport> {
+  const ordered = [...recs].sort((a, b) => a.userId.localeCompare(b.userId))
+  const total = ordered.length
   const img = parseDataUrl(image)
   let fileId: string | null = null
   let delivered = 0, failed = 0, skipped = 0
-  for (const r of recs) {
+  const start = Date.now()
+  for (let i = Math.max(0, startOffset); i < ordered.length; i++) {
+    if (Date.now() - start > DELIVER_BUDGET_MS) {
+      return { ok: true, delivered, failed, skipped, total, partial: true, nextOffset: i }
+    }
+    const r = ordered[i]
     let res: SendResult
     if (img) {
       res = fileId
@@ -379,47 +404,55 @@ async function deliver(recs: Profile[], text: string, image?: string): Promise<S
     } else {
       res = await sendText(r.userId, text)
     }
-    if (res.ok) delivered++
-    else if (res.error === 'no_token') {
-      return { ok: false, delivered, failed, skipped, total: recs.length, error: 'no_token' }
-    } else if (isSkip(res.error)) skipped++
+    if (res.ok) { delivered++; continue }
+    if (res.error === 'no_token') {
+      return { ok: false, delivered, failed, skipped, total, error: 'no_token' }
+    }
+    if (res.retryAfter != null) {
+      // 429 от Telegram — не теряем получателя: пауза и продолжение с него же.
+      return { ok: true, delivered, failed, skipped, total, partial: true, nextOffset: i, retryAfter: res.retryAfter }
+    }
+    if (isSkip(res.error)) skipped++
     else failed++
   }
-  return { ok: true, delivered, failed, skipped, total: recs.length }
+  return { ok: true, delivered, failed, skipped, total }
 }
 
 // Отправить анонс события за дату dateKey всем получателям. force — повторно, игнорируя дедуп.
 export async function sendEvent(
   eventId: EventId,
   dateKey: string,
-  opts: { force?: boolean } = {},
+  opts: { force?: boolean; offset?: number } = {},
 ): Promise<SendReport> {
   const def = DEF_BY_ID[eventId]
   if (!def) return { ok: false, delivered: 0, failed: 0, skipped: 0, total: 0, error: 'unknown_event' }
   const cfg = await loadConfig()
   const key = `${eventId}:${dateKey}`
-  if (cfg.sent[key] && !opts.force) {
+  // Дедуп проверяем только в начале рассылки (offset 0); при продолжении (resume) — нет.
+  if (cfg.sent[key] && !opts.force && !opts.offset) {
     return { ok: true, delivered: 0, failed: 0, skipped: 0, total: 0, alreadySent: true }
   }
   const recs = await recipients()
   const message = buildMessage(def, dateKey, cfg.events[eventId].template, recs)
   if (message === null) return { ok: false, delivered: 0, failed: 0, skipped: 0, total: 0, error: 'no_occurrence' }
 
-  const report = await deliver(recs, message, cfg.events[eventId].image)
+  const report = await deliver(recs, message, cfg.events[eventId].image, opts.offset ?? 0)
   if (report.error) return report // no_token — не помечаем как отправленное
-  cfg.sent[key] = Date.now()
-  await saveConfig(cfg)
+  if (!report.partial) { // помечаем отправленным только когда список пройден полностью
+    cfg.sent[key] = Date.now()
+    await saveConfig(cfg)
+  }
   return report
 }
 
 // Произвольное уведомление (broadcast из админки): текст + опц. картинка всем резидентам.
-export async function sendCustom(text: string, image?: string): Promise<SendReport> {
+export async function sendCustom(text: string, image?: string, offset = 0): Promise<SendReport> {
   const body = (text ?? '').trim()
   if (!body && !parseDataUrl(image)) {
     return { ok: false, delivered: 0, failed: 0, skipped: 0, total: 0, error: 'empty' }
   }
   const recs = await recipients()
-  return deliver(recs, body, image)
+  return deliver(recs, body, image, offset)
 }
 
 // Тестовое сообщение на конкретный chat_id (проверка бота из админки).

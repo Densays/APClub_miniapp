@@ -207,6 +207,37 @@ export type SendReport = {
   total: number
   error?: string
   alreadySent?: boolean
+  partial?: boolean
+  nextOffset?: number
+  retryAfter?: number
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+// Прогонка резюмируемой рассылки до конца: сервер обрабатывает список чанками
+// (бюджет времени на функцию), возвращая partial+nextOffset; здесь докручиваем
+// в цикле, аккумулируя статистику и сообщая прогресс. Так рассылка на 100+ не
+// обрывается по таймауту serverless-функции.
+async function runResumable(
+  call: (offset: number) => Promise<SendReport>,
+  onProgress?: (done: number, total: number) => void,
+): Promise<SendReport> {
+  let offset = 0
+  const acc = { delivered: 0, failed: 0, skipped: 0, total: 0 }
+  for (let guard = 0; guard < 500; guard++) {
+    const rep = await call(offset)
+    if (rep.error) return { ...rep, ...acc, delivered: acc.delivered + rep.delivered }
+    acc.delivered += rep.delivered
+    acc.failed += rep.failed
+    acc.skipped += rep.skipped
+    acc.total = rep.total
+    const done = acc.delivered + acc.failed + acc.skipped
+    onProgress?.(done, rep.total)
+    if (!rep.partial) return { ok: rep.ok, ...acc, alreadySent: rep.alreadySent }
+    offset = rep.nextOffset ?? done
+    if (rep.retryAfter) await sleep(Math.min(rep.retryAfter, 60) * 1000 + 250)
+  }
+  return { ok: true, ...acc } // защитный предел итераций
 }
 
 export async function getNotifications(): Promise<NotifData> {
@@ -225,22 +256,30 @@ export async function saveNotifications(config: Partial<NotifConfig>): Promise<N
   return (await r.json()).config as NotifConfig
 }
 
-export async function sendNotification(eventId: NotifEventId, dateKey: string, force = false): Promise<SendReport> {
-  const r = await fetch(`${API_BASE}/api/admin/notifications/send`, {
-    method: 'POST', headers: headers(), body: JSON.stringify({ eventId, dateKey, force }),
+async function postSend(path: string, payload: Record<string, unknown>): Promise<SendReport> {
+  const r = await fetch(`${API_BASE}${path}`, {
+    method: 'POST', headers: headers(), body: JSON.stringify(payload),
   })
   const d = await r.json().catch(() => ({}))
   if (!r.ok && !d.report) throw new Error(d.error || `Отправка не удалась (${r.status})`)
   return d.report as SendReport
 }
 
-export async function sendCustomNotification(text: string, image?: string): Promise<SendReport> {
-  const r = await fetch(`${API_BASE}/api/admin/notifications/send-custom`, {
-    method: 'POST', headers: headers(), body: JSON.stringify({ text, image }),
-  })
-  const d = await r.json().catch(() => ({}))
-  if (!r.ok && !d.report) throw new Error(d.error || `Отправка не удалась (${r.status})`)
-  return d.report as SendReport
+export async function sendNotification(
+  eventId: NotifEventId, dateKey: string, force = false,
+  onProgress?: (done: number, total: number) => void,
+): Promise<SendReport> {
+  // force применяем только к первому чанку (offset 0); резюм-чанки идут по offset.
+  return runResumable((offset) =>
+    postSend('/api/admin/notifications/send', { eventId, dateKey, force: force && offset === 0, offset }), onProgress)
+}
+
+export async function sendCustomNotification(
+  text: string, image?: string,
+  onProgress?: (done: number, total: number) => void,
+): Promise<SendReport> {
+  return runResumable((offset) =>
+    postSend('/api/admin/notifications/send-custom', { text, image, offset }), onProgress)
 }
 
 export type ChannelStatus = {

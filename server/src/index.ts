@@ -59,7 +59,25 @@ if (ALLOW_DEV_AUTH) {
   console.warn('🛠  ALLOW_DEV_AUTH=1 — включён dev-вход без Telegram. Не используйте в проде!')
 }
 
-app.use(cors())
+// CORS: ограничиваем известными доменами Mini App / админки (+ localhost для dev
+// + опц. ALLOWED_ORIGINS из env). Запросы без Origin (сервер-сервер, Telegram
+// webhook, cron, curl) пропускаем — их защищает токен/секрет, не CORS.
+const CORS_ALLOW = [
+  'https://apclub.vercel.app',
+  'https://apclub-admin.vercel.app',
+  process.env.MINIAPP_URL,
+  process.env.ADMIN_URL,
+  ...(process.env.ALLOWED_ORIGINS ?? '').split(',').map((s) => s.trim()),
+  'http://localhost:5173', 'http://localhost:5174', 'http://localhost:4173',
+].filter((x): x is string => Boolean(x))
+app.use(
+  cors({
+    origin(origin, cb) {
+      if (!origin || CORS_ALLOW.includes(origin)) return cb(null, true)
+      cb(null, false)
+    },
+  }),
+)
 // Лимит поднят: профили и уведомления могут нести base64-картинки (аватар/баннер).
 app.use(express.json({ limit: '12mb' }))
 
@@ -346,12 +364,37 @@ app.get('/api/profile/:id', ah(async (req, res) => {
 
 // ── Браузерная админка (deploy в apk-lab) ────────────────────────────────────
 
+// Анти-брутфорс логина: N неудач с одного IP → временная блокировка. In-memory
+// (на инстанс) — достаточная преграда для перебора пароля; сбрасывается успехом.
+const LOGIN_MAX_FAILS = 6
+const LOGIN_LOCK_MS = 10 * 60 * 1000
+const loginGuard = new Map<string, { fails: number; until: number }>()
+function clientIp(req: express.Request): string {
+  const xf = (req.headers['x-forwarded-for'] as string | undefined) ?? ''
+  return xf.split(',')[0].trim() || req.socket?.remoteAddress || 'unknown'
+}
+
 // Вход по паролю. Возвращает токен (= пароль), который админка хранит локально
 // и шлёт в заголовке x-admin-token. Отдельная авторизация от Telegram.
 app.post('/api/admin/login', (req, res) => {
+  const ip = clientIp(req)
+  const now = Date.now()
+  let g = loginGuard.get(ip)
+  if (g && g.until && g.until < now) g = undefined // блокировка истекла — сброс
+  g = g ?? { fails: 0, until: 0 }
+  if (g.until > now) {
+    const mins = Math.ceil((g.until - now) / 60000)
+    return res.status(429).json({ ok: false, error: `Слишком много попыток. Повторите через ~${mins} мин.` })
+  }
   const password = String((req.body as Record<string, unknown>)?.password ?? '')
   if (!ADMIN_PASSWORD) return res.status(503).json({ ok: false, error: 'Админка не настроена (нет ADMIN_PASSWORD)' })
-  if (!safeEqual(password, ADMIN_PASSWORD)) return res.status(401).json({ ok: false, error: 'Неверный пароль' })
+  if (!safeEqual(password, ADMIN_PASSWORD)) {
+    g.fails++
+    if (g.fails >= LOGIN_MAX_FAILS) g.until = now + LOGIN_LOCK_MS
+    loginGuard.set(ip, g)
+    return res.status(401).json({ ok: false, error: 'Неверный пароль' })
+  }
+  loginGuard.delete(ip) // успех — сбрасываем счётчик
   res.json({ ok: true, token: ADMIN_PASSWORD })
 })
 
@@ -523,22 +566,25 @@ app.put('/api/admin/notifications', ah(async (req, res) => {
 // Ручная отправка анонса события (гибрид-режим).
 app.post('/api/admin/notifications/send', ah(async (req, res) => {
   if (!requireAdmin(req, res)) return
-  const body = (req.body ?? {}) as { eventId?: string; dateKey?: string; force?: boolean }
+  const body = (req.body ?? {}) as { eventId?: string; dateKey?: string; force?: boolean; offset?: number }
   if (!body.eventId || !EVENT_IDS.has(body.eventId as EventId)) {
     return res.status(400).json({ ok: false, error: 'bad_event' })
   }
   if (!body.dateKey || !/^\d{4}-\d{2}-\d{2}$/.test(body.dateKey)) {
     return res.status(400).json({ ok: false, error: 'bad_date' })
   }
-  const report = await sendNotifEvent(body.eventId as EventId, body.dateKey, { force: Boolean(body.force) })
+  const offset = typeof body.offset === 'number' ? body.offset : 0
+  const report = await sendNotifEvent(body.eventId as EventId, body.dateKey, { force: Boolean(body.force), offset })
   res.json({ ok: report.ok, report })
 }))
 
 // Произвольное уведомление — рассылка всем резидентам (текст + опц. картинка).
+// Резюмируемо: offset позволяет продолжить длинную рассылку (клиент шлёт в цикле).
 app.post('/api/admin/notifications/send-custom', ah(async (req, res) => {
   if (!requireAdmin(req, res)) return
-  const body = (req.body ?? {}) as { text?: string; image?: string }
-  const report = await sendNotifCustom(String(body.text ?? ''), body.image)
+  const body = (req.body ?? {}) as { text?: string; image?: string; offset?: number }
+  const offset = typeof body.offset === 'number' ? body.offset : 0
+  const report = await sendNotifCustom(String(body.text ?? ''), body.image, offset)
   res.json({ ok: report.ok, report })
 }))
 
