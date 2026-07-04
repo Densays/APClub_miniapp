@@ -81,21 +81,29 @@
 /* Достижения участника */
 .mp-ach { display: flex; flex-direction: column; gap: 14px; }
 .mp-ach-stars { line-height: 1; }
-.mp-ach-list { display: flex; flex-direction: column; gap: 10px; }
-.mp-ach-item { display: flex; align-items: center; gap: 12px; }
+/* Достижения — плашками (wrap-строка пилюль), а не вертикальным списком */
+.mp-ach-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.mp-ach-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: rgba(217, 185, 116, 0.1);
+  border: 1px solid var(--gold-border);
+  border-radius: 999px;
+  padding: 6px 12px 6px 8px;
+}
 .mp-ach-ico {
-  width: 34px;
-  height: 34px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
-  background: rgba(217, 185, 116, 0.16);
-  box-shadow: 0 0 0 1px var(--gold-border);
+  background: rgba(217, 185, 116, 0.18);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
+  font-size: 14px;
   flex-shrink: 0;
 }
-.mp-ach-name { font-size: 0.98rem; color: var(--text); }
+.mp-ach-name { font-size: 0.86rem; font-weight: 600; color: var(--text); white-space: nowrap; }
 .mp-ach-empty { color: var(--text-dim); font-size: 0.95rem; }
 
 .mp-socials { display: flex; flex-direction: column; gap: 2px; padding: 6px 20px; }
