@@ -2,22 +2,19 @@ import { useMemo } from 'react'
 import '../screens/Leaderboard.css'
 import { useCatalog } from '../catalog'
 import { computeStars } from '../stars'
-import Stars from './Stars'
-import ResultBadge from './ResultBadge'
 import type { ProfileData } from '../api'
 
 const MEDALS = ['🥇', '🥈', '🥉']
 const nameOf = (p: ProfileData) => `${p.firstName ?? ''} ${p.lastName ?? ''}`.trim() || 'Участник'
 const initialsOf = (p: ProfileData) => `${p.firstName?.[0] ?? ''}${p.lastName?.[0] ?? ''}` || 'AP'
 
-// Общий вид лидерборда: подиум топ-3 + список. Показывает статус в клубе, звёзды
-// и максимальный результат за месяц. Используется и на странице «Таблица лидеров»,
-// и во вкладке «Лидеры» раздела «Сообщество» (limit=10).
+// Общий вид лидерборда: подиум топ-3 + список. Слева стопкой — имя, статус в
+// клубе + число звёзд, город; справа — золотая плашка с результатом за месяц.
+// Используется и на странице «Таблица лидеров», и во вкладке «Лидеры» Сообщества.
 export default function LeadersView({ members, limit, onOpenMember }: {
   members: ProfileData[]; limit?: number; onOpenMember?: (id: string) => void
 }) {
   const catalog = useCatalog()
-  const totalAch = catalog.achievements.length
   const countOf = (p: ProfileData) => computeStars(p, catalog.achievements)
   const statusOf = (p: ProfileData) => {
     const cur = p.unlock?.current ?? 0
@@ -46,8 +43,8 @@ export default function LeadersView({ members, limit, onOpenMember }: {
               </div>
               <div className="lb-pod-name">{nameOf(p)}</div>
               {statusOf(p) && <div className="lb-pod-status">{statusOf(p)}</div>}
-              <div className="lb-pod-stars"><Stars filled={countOf(p)} total={totalAch} size={10} /></div>
-              <ResultBadge value={p.maxResult} />
+              <div className="lb-pod-starnum">★ {countOf(p)}</div>
+              {p.maxResult && <div className="lb-pod-result">{p.maxResult}</div>}
             </button>
           )
         })}
@@ -65,10 +62,16 @@ export default function LeadersView({ members, limit, onOpenMember }: {
               <div className="lb-name">{nameOf(p)}</div>
               <div className="lb-meta">
                 {statusOf(p) && <span className="lb-status">{statusOf(p)}</span>}
-                <Stars filled={countOf(p)} total={totalAch} size={12} />
+                <span className="lb-starnum">★ {countOf(p)}</span>
               </div>
-              <ResultBadge value={p.maxResult} />
+              {p.city && <div className="lb-city">📍 {p.city}</div>}
             </div>
+            {p.maxResult && (
+              <div className="lb-result-box">
+                <span className="lb-result-l">за месяц</span>
+                <b className="lb-result-v">{p.maxResult}</b>
+              </div>
+            )}
           </button>
         ))}
       </div>

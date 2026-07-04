@@ -134,21 +134,43 @@
   text-overflow: ellipsis;
 }
 .lb-sub { font-size: 0.82rem; color: var(--text-dim); margin-top: 2px; }
-/* Мета-строка в списке лидеров: статус · звёзды · результат за месяц */
-.lb-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+/* Мета-строка в списке лидеров: статус в клубе · число звёзд */
+.lb-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 3px; }
 .lb-status {
   font-size: 0.7rem; font-weight: 700; color: var(--gold);
   background: rgba(217, 185, 116, 0.12); border: 1px solid var(--gold-border);
   border-radius: 999px; padding: 2px 8px; white-space: nowrap;
 }
-.lb-result {
-  font-size: 0.7rem; font-weight: 700; color: #4ade80;
-  background: rgba(74, 222, 128, 0.12); border: 1px solid rgba(74, 222, 128, 0.3);
-  border-radius: 999px; padding: 2px 8px; white-space: nowrap;
+/* Звёзды числом (без иконок) */
+.lb-starnum { font-size: 0.82rem; font-weight: 700; color: var(--gold); white-space: nowrap; }
+/* Город — третьей строкой */
+.lb-city { font-size: 0.78rem; color: var(--text-dim); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Золотая прямоугольная плашка результата за месяц — справа, ~2 строки в высоту */
+.lb-result-box {
+  flex-shrink: 0;
+  align-self: stretch;
+  min-height: 46px;
+  min-width: 78px;
+  max-width: 120px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 1px;
+  padding: 6px 12px;
+  border-radius: 11px;
+  background: linear-gradient(150deg, #e6c988, #d4a94f);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.25);
 }
-/* Подиум: статус и результат под именем/звёздами */
+.lb-result-l { font-size: 0.56rem; text-transform: uppercase; letter-spacing: 0.6px; color: rgba(28, 22, 8, 0.7); font-weight: 700; }
+.lb-result-v { font-size: 0.92rem; font-weight: 800; color: #1c1608; text-align: center; line-height: 1.1; word-break: break-word; }
+
+/* Подиум: статус, число звёзд, результат */
 .lb-pod-status { font-size: 0.68rem; font-weight: 700; color: var(--gold); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-.lb-pod-result { font-size: 0.68rem; font-weight: 700; color: #4ade80; text-align: center; white-space: nowrap; }
+.lb-pod-starnum { font-size: 0.78rem; font-weight: 700; color: var(--gold); text-align: center; }
+.lb-pod-result {
+  font-size: 0.72rem; font-weight: 800; color: #1c1608; text-align: center;
+  background: linear-gradient(150deg, #e6c988, #d4a94f); border-radius: 7px;
+  padding: 2px 8px; margin-top: 2px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .lb-count {
   flex-shrink: 0;
   font-family: var(--font-display);
