@@ -6,6 +6,7 @@ import type { ProfileData } from '../api'
 import { useCatalog } from '../catalog'
 import { computeStars } from '../stars'
 import LeadersView from '../components/LeadersView'
+import ResultBadge from '../components/ResultBadge'
 import Spinner from '../components/Spinner'
 
 function PinIcon() {
@@ -80,8 +81,8 @@ export default function Community({ onOpenMember }: { onOpenMember?: (id: string
                     <div className="cm-meta">
                       {status && <span className="cm-status">{status}</span>}
                       <span className="cm-stars">★ {stars}</span>
-                      {m.maxResult && <span className="cm-result">📈 {m.maxResult}/мес</span>}
                     </div>
+                    <ResultBadge value={m.maxResult} />
                     {subtitle && <div className="cm-sub">{subtitle}</div>}
                     {m.city && (<div className="cm-city"><PinIcon /> <span>{m.city}</span></div>)}
                   </div>

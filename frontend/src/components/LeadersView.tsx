@@ -3,6 +3,7 @@ import '../screens/Leaderboard.css'
 import { useCatalog } from '../catalog'
 import { computeStars } from '../stars'
 import Stars from './Stars'
+import ResultBadge from './ResultBadge'
 import type { ProfileData } from '../api'
 
 const MEDALS = ['🥇', '🥈', '🥉']
@@ -46,7 +47,7 @@ export default function LeadersView({ members, limit, onOpenMember }: {
               <div className="lb-pod-name">{nameOf(p)}</div>
               {statusOf(p) && <div className="lb-pod-status">{statusOf(p)}</div>}
               <div className="lb-pod-stars"><Stars filled={countOf(p)} total={totalAch} size={10} /></div>
-              {p.maxResult && <div className="lb-pod-result">📈 {p.maxResult}</div>}
+              <ResultBadge value={p.maxResult} />
             </button>
           )
         })}
@@ -65,8 +66,8 @@ export default function LeadersView({ members, limit, onOpenMember }: {
               <div className="lb-meta">
                 {statusOf(p) && <span className="lb-status">{statusOf(p)}</span>}
                 <Stars filled={countOf(p)} total={totalAch} size={12} />
-                {p.maxResult && <span className="lb-result">📈 {p.maxResult}/мес</span>}
               </div>
+              <ResultBadge value={p.maxResult} />
             </div>
           </button>
         ))}
