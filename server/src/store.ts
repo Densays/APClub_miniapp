@@ -75,6 +75,9 @@ export type Profile = {
   // Прунится до последних ~40 дней. Дашборд суммирует по всем участникам.
   launchDays?: Record<string, number> // { 'YYYY-MM-DD': count }
   activeMonths?: string[] // месяцы активности 'YYYY-MM' (для retention/churn)
+  // Отложенное второе сообщение бота (канал+поддержка) через ~3 мин после welcome.
+  followupDueAt?: number | null // когда отправить (ts); null/absent — не запланировано
+  followupSent?: boolean // уже отправлено (одноразово на пользователя)
   // Регистрация (гейт входа): заполняется при первом онбординге в мини-аппе.
   email?: string // почта — для проверки доступа на платформе
   registeredAt?: number // момент завершения регистрации (есть → онбординг пройден)
@@ -117,6 +120,9 @@ export interface ProfileStore {
   // (нормализованной) почтой, кроме excludeUserId. НЕ тянет avatar/полные
   // профили. null — почта свободна. Заменяет тяжёлый list() в /register.
   emailOwner(emailNorm: string, excludeUserId: string): Promise<string | null>
+  // Лёгкий список userId, у кого followupDueAt наступил (<= now) — для отправки
+  // отложенного второго сообщения. Проекция без avatar/полных профилей.
+  dueFollowups(now: number): Promise<string[]>
 }
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -182,6 +188,16 @@ class FileProfileStore implements ProfileStore {
       if (p.registeredAt && String(p.email ?? '').trim().toLowerCase() === emailNorm) return uid
     }
     return null
+  }
+
+  async dueFollowups(now: number): Promise<string[]> {
+    const all = await this.load()
+    const out: string[] = []
+    for (const [uid, p] of Object.entries(all)) {
+      if (uid.startsWith('__')) continue
+      if (typeof p.followupDueAt === 'number' && p.followupDueAt <= now) out.push(uid)
+    }
+    return out
   }
 }
 

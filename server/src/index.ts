@@ -19,7 +19,7 @@ import {
   EVENT_DEFS,
   type EventId,
 } from './notifications.ts'
-import { startBot, channelStatus, publishChannelEntry, handleUpdate, setWebhook, fetchUsername, sendNetworkingRequest, confirmNetworking } from './bot.ts'
+import { startBot, channelStatus, publishChannelEntry, handleUpdate, setWebhook, fetchUsername, sendNetworkingRequest, confirmNetworking, flushFollowups } from './bot.ts'
 
 const app = express()
 const PORT = Number(process.env.PORT) || 3000
@@ -870,6 +870,7 @@ app.all('/api/cron/notify', ah(async (req, res) => {
   const provided = String(req.query.secret ?? '') || (req.headers.authorization ?? '').replace(/^Bearer\s+/i, '')
   if (CRON_SECRET && !safeEqual(provided, CRON_SECRET)) return res.status(401).json({ ok: false, error: 'unauthorized' })
   await runDueNotifications()
+  await flushFollowups() // разослать «дозревшие» отложенные вторые сообщения
   res.json({ ok: true, ranAt: new Date().toISOString() })
 }))
 
@@ -1122,6 +1123,11 @@ if (!process.env.VERCEL) {
   setInterval(() => {
     runDueNotifications().catch((e) => console.error('[notify] scheduler error:', e?.message ?? e))
   }, NOTIFY_INTERVAL_MS)
+  // Отложенные вторые сообщения (канал+поддержка) — проверяем чаще, чтобы 3-мин
+  // задержка была точнее в локальном/долгоживущем режиме.
+  setInterval(() => {
+    flushFollowups().catch((e) => console.error('[followup] scheduler error:', e?.message ?? e))
+  }, 30 * 1000)
   startBot()
 }
 

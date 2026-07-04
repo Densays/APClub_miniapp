@@ -77,4 +77,20 @@ export class SupabaseProfileStore implements ProfileStore {
     }
     return null
   }
+
+  // Лёгкая проекция: user_id + followupDueAt (без avatar/data). Возвращает id тех,
+  // у кого срок отложенного сообщения наступил.
+  async dueFollowups(now: number): Promise<string[]> {
+    const { data, error } = await this.db
+      .from(TABLE)
+      .select('user_id, due:data->>followupDueAt')
+    if (error) throw error
+    const out: string[] = []
+    for (const row of (data ?? []) as { user_id: string; due: string | null }[]) {
+      if (row.user_id.startsWith('__')) continue
+      const due = row.due ? Number(row.due) : NaN
+      if (Number.isFinite(due) && due <= now) out.push(row.user_id)
+    }
+    return out
+  }
 }

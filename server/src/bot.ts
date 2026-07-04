@@ -6,15 +6,22 @@
 // шлём только текст, а кнопки появятся автоматически, когда впишем URL в env.
 
 import { WELCOME_JPEG_BASE64 } from './welcomeAsset.ts'
+import { CLUBLINKS_JPEG_BASE64 } from './clubLinksAsset.ts'
 import { store } from './store.ts'
 import type { Profile } from './store.ts'
 
 const BOT_TOKEN = process.env.BOT_TOKEN ?? ''
 const IS_VERCEL = Boolean(process.env.VERCEL) // на Vercel — webhook вместо polling
-// Баннер приветствия — из зашитого base64 (не читаем с ФС, работает на serverless).
+// Баннеры — из зашитого base64 (не читаем с ФС, работает на serverless).
 const WELCOME_BUF = Buffer.from(WELCOME_JPEG_BASE64, 'base64')
+const CLUBLINKS_BUF = Buffer.from(CLUBLINKS_JPEG_BASE64, 'base64')
 // Публичный HTTPS-адрес мини-приложения (Vercel и т.п.). Задаётся при деплое.
 const MINIAPP_URL = (process.env.MINIAPP_URL ?? '').trim()
+// Второе (отложенное) сообщение: ссылка на новостной канал клуба и на поддержку.
+const CLUB_CHANNEL_LINK = (process.env.CLUB_CHANNEL_LINK ?? '').trim()
+const SUPPORT_LINK = (process.env.SUPPORT_LINK ?? '').trim()
+// Через сколько после welcome слать второе сообщение (по умолчанию 3 минуты).
+const FOLLOWUP_DELAY_MS = Number(process.env.FOLLOWUP_DELAY_MS) || 3 * 60 * 1000
 
 // Канал клуба: id (@username или -100...) для публикации закреплённого приветствия.
 const CHANNEL_ID = (process.env.CHANNEL_ID ?? '').trim()
@@ -52,45 +59,48 @@ function welcomeKeyboard(): unknown | undefined {
   return { inline_keyboard: [[{ text: '🔓 Вход в клуб', web_app: { url: MINIAPP_URL } }]] }
 }
 
-// Кеш file_id баннера: заливаем один раз, дальше шлём по id (не перезагружаем).
-let welcomeFileId: string | null = null
+// Ассеты-баннеры: буфер картинки + кеш file_id (заливаем один раз, дальше по id).
+const WELCOME_ASSET = { buf: WELCOME_BUF, name: 'welcome.jpg', fileId: null as string | null }
+const CLUBLINKS_ASSET = { buf: CLUBLINKS_BUF, name: 'apclub.jpg', fileId: null as string | null }
 
 // Отправка баннера с подписью в любой чат/канал. Возвращает message_id (для закрепа).
-// reply_markup — опц. инлайн-клавиатура. При недоступной картинке — фолбэк на текст.
+// reply_markup — опц. инлайн-клавиатура. asset — какой баннер слать (по умолчанию
+// приветственный). При недоступной картинке — фолбэк на текст.
 async function sendBanner(
   chatId: number | string,
   caption: string,
   reply_markup?: unknown,
+  asset: { buf: Buffer; name: string; fileId: string | null } = WELCOME_ASSET,
 ): Promise<{ ok: boolean; messageId?: number; error?: string }> {
   try {
     // 1) Повторная отправка — по file_id (дёшево).
-    if (welcomeFileId) {
+    if (asset.fileId) {
       const r = await fetch(TG('sendPhoto'), {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: chatId, photo: welcomeFileId, caption, parse_mode: 'HTML', reply_markup }),
+        body: JSON.stringify({ chat_id: chatId, photo: asset.fileId, caption, parse_mode: 'HTML', reply_markup }),
       })
       const d = (await r.json().catch(() => ({}))) as { ok?: boolean; description?: string; result?: { message_id?: number } }
       if (d.ok) return { ok: true, messageId: d.result?.message_id }
-      welcomeFileId = null // id протух / нет прав — пробуем заливкой ниже
+      asset.fileId = null // id протух / нет прав — пробуем заливкой ниже
       if (d.description && /chat not found|not enough rights|forbidden|administrator/i.test(d.description)) {
         return { ok: false, error: d.description }
       }
     }
     // 2) Первая отправка — заливаем байты, запоминаем file_id.
-    const buf = WELCOME_BUF
+    const buf = asset.buf
     if (buf.length) {
       const form = new FormData()
       form.append('chat_id', String(chatId))
       form.append('caption', caption)
       form.append('parse_mode', 'HTML')
       if (reply_markup) form.append('reply_markup', JSON.stringify(reply_markup))
-      form.append('photo', new Blob([new Uint8Array(buf)], { type: 'image/jpeg' }), 'welcome.jpg')
+      form.append('photo', new Blob([new Uint8Array(buf)], { type: 'image/jpeg' }), asset.name)
       const r = await fetch(TG('sendPhoto'), { method: 'POST', body: form })
       const d = (await r.json().catch(() => ({}))) as
         { ok?: boolean; description?: string; result?: { message_id?: number; photo?: { file_id: string }[] } }
       if (d.ok) {
         const photos = d.result?.photo ?? []
-        if (photos.length) welcomeFileId = photos[photos.length - 1].file_id
+        if (photos.length) asset.fileId = photos[photos.length - 1].file_id
         return { ok: true, messageId: d.result?.message_id }
       }
       if (d.description) return { ok: false, error: d.description }
@@ -115,6 +125,56 @@ async function sendWelcome(chatId: number): Promise<void> {
     : WELCOME + '\n\n<i>🔗 Кнопка входа появится после публикации приложения.</i>'
   const res = await sendBanner(chatId, caption, reply_markup)
   if (!res.ok) console.error('[bot] sendWelcome error:', res.error)
+}
+
+// ── Второе (отложенное) сообщение: новостной канал + поддержка ────────────────
+const FOLLOWUP_TEXT =
+  'Для твоего удобства подписывайся на новостной канал, где мы публикуем ключевые события клуба. Если возникнут вопросы, пиши в поддержку.'
+
+// Кнопки: «Канал клуба» + «Написать в поддержку» (только те, чья ссылка задана).
+function followupKeyboard(): unknown | undefined {
+  const rows: { text: string; url: string }[][] = []
+  if (CLUB_CHANNEL_LINK) rows.push([{ text: '📣 Канал клуба', url: CLUB_CHANNEL_LINK }])
+  if (SUPPORT_LINK) rows.push([{ text: '💬 Написать в поддержку', url: SUPPORT_LINK }])
+  return rows.length ? { inline_keyboard: rows } : undefined
+}
+
+async function sendClubLinks(chatId: number | string): Promise<boolean> {
+  const res = await sendBanner(chatId, FOLLOWUP_TEXT, followupKeyboard(), CLUBLINKS_ASSET)
+  if (!res.ok) console.error('[bot] sendClubLinks error:', res.error)
+  return res.ok
+}
+
+// Планируем второе сообщение через ~3 мин — ОДИН раз на пользователя (на его же
+// строке, без общей записи). Если уже отправлено или запланировано — пропускаем.
+async function scheduleFollowup(chatId: number): Promise<void> {
+  try {
+    const p = await store.get(String(chatId))
+    if (p?.followupSent || typeof p?.followupDueAt === 'number') return
+    await store.upsert(String(chatId), { followupDueAt: Date.now() + FOLLOWUP_DELAY_MS })
+  } catch (e) { console.error('[bot] scheduleFollowup:', (e as Error).message) }
+}
+
+// Рассылка «дозревших» отложенных сообщений. serverless не держит setTimeout,
+// поэтому дёргаем это из вебхука (на каждый апдейт), из cron и из локального
+// планировщика. Помечаем followupSent, чтобы не слать повторно.
+let flushing = false
+export async function flushFollowups(): Promise<void> {
+  if (flushing) return
+  flushing = true
+  try {
+    const due = await store.dueFollowups(Date.now())
+    for (const id of due) {
+      const p = await store.get(id)
+      if (!p || p.followupSent || typeof p.followupDueAt !== 'number') continue
+      await sendClubLinks(id)
+      await store.upsert(id, { followupSent: true, followupDueAt: null })
+    }
+  } catch (e) {
+    console.error('[bot] flushFollowups error:', (e as Error).message)
+  } finally {
+    flushing = false
+  }
 }
 
 // ── Нетворкинг: уведомление о запросе на знакомство + подтверждение ──────────
@@ -186,11 +246,16 @@ type Update = {
 
 // Обработка одного апдейта (общая для polling и webhook).
 export async function handleUpdate(u: Update): Promise<void> {
+  // Любой апдейт — повод разослать «дозревшие» отложенные вторые сообщения
+  // (на serverless нет фонового таймера; вебхук — самый частый триггер).
+  await flushFollowups()
   if (u.callback_query) { await handleCallback(u.callback_query); return }
   const chatId = u.message?.chat?.id
   if (!chatId) return
   // На /start и на любое сообщение показываем приветствие с входом.
   await sendWelcome(chatId)
+  // И один раз ставим отложенное второе сообщение (канал + поддержка).
+  await scheduleFollowup(chatId)
 }
 
 // Установить/снять webhook (для serverless-режима). url — полный адрес эндпоинта.
