@@ -1,13 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
-import { getAllowlist, saveAllowlist } from './api'
+import { getAllowlist, saveAllowlist, getProfiles, type Profile } from './api'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const norm = (e: string) => e.trim().toLowerCase()
+const nameOf = (p: Profile) => `${p.firstName ?? ''} ${p.lastName ?? ''}`.trim() || 'Без имени'
+const dateStr = (ts?: number) => (ts ? new Date(ts).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '')
 
 // Раздел «Доступ по почте»: единый список email, которым разрешён вход в кабинет.
-// Пользователь при регистрации должен указать почту из этого списка (иначе — отказ).
-export default function Allowlist() {
+// Таблица сопоставляет каждую почту с профилем участника (если он вошёл): данные,
+// статус/срок доступа, переход в карточку. Пользователь при регистрации должен
+// указать почту из этого списка (иначе — отказ).
+export default function Allowlist({ onOpenMember }: { onOpenMember?: (id: string) => void }) {
   const [emails, setEmails] = useState<string[]>([])
+  const [profiles, setProfiles] = useState<Profile[]>([])
   const [loaded, setLoaded] = useState(false)
   const [input, setInput] = useState('')
   const [q, setQ] = useState('')
@@ -20,7 +25,16 @@ export default function Allowlist() {
     getAllowlist()
       .then((list) => { setEmails(list); setLoaded(true) })
       .catch((e) => setErr((e as Error).message === 'unauth' ? 'Сессия истекла — войдите заново' : 'Не удалось загрузить список'))
+    // Профили — чтобы показать данные участника рядом с почтой (не критично).
+    getProfiles().then(setProfiles).catch(() => setProfiles([]))
   }, [])
+
+  // Карта нормализованная почта → профиль участника (кто уже вошёл по этой почте).
+  const byEmail = useMemo(() => {
+    const m = new Map<string, Profile>()
+    for (const p of profiles) { const e = norm(p.email ?? ''); if (e) m.set(e, p) }
+    return m
+  }, [profiles])
 
   // Добавление: можно вставить несколько через запятую/пробел/перенос строки.
   function add() {
@@ -52,12 +66,21 @@ export default function Allowlist() {
     return s ? emails.filter((e) => e.includes(s)) : emails
   }, [emails, q])
 
+  const registered = emails.filter((e) => byEmail.has(e)).length
+
+  function accessBadge(p?: Profile) {
+    if (!p) return <span className="badge">не зарегистрирован</span>
+    if (p.access?.active === false) return <span className="badge red">доступ истёк {dateStr(p.accessUntil)}</span>
+    if (p.accessUntil) return <span className="badge green">активен до {dateStr(p.accessUntil)}{p.billingPeriod ? '' : ''}</span>
+    return <span className="badge green">♾ бессрочно</span>
+  }
+
   return (
     <div className="page">
       <div className="page-head">
         <div>
           <h1 className="page-title">Доступ по почте</h1>
-          <div className="page-sub">Вход в кабинет только для почт из списка · {emails.length}</div>
+          <div className="page-sub">Вход только для почт из списка · всего {emails.length} · вошли {registered}</div>
         </div>
         <button className="btn btn-gold" disabled={!dirty || busy} onClick={save}>{busy ? 'Сохраняю…' : 'Сохранить'}</button>
       </div>
@@ -84,13 +107,38 @@ export default function Allowlist() {
         <input className="input search" placeholder="Поиск по списку" value={q} onChange={(e) => setQ(e.target.value)} />
       )}
 
-      <div className="tags" style={{ marginTop: 12 }}>
-        {!loaded && <span className="hint">Загрузка…</span>}
-        {loaded && emails.length === 0 && <span className="hint">Список пуст — добавь первую почту.</span>}
-        {filtered.map((e) => (
-          <span className="tag" key={e}>{e}<button className="tag-x" onClick={() => remove(e)}>×</button></span>
-        ))}
-      </div>
+      {!loaded && <div className="td-empty">Загрузка…</div>}
+      {loaded && emails.length === 0 && <div className="td-empty">Список пуст — добавь первую почту.</div>}
+
+      {loaded && emails.length > 0 && (
+        <div className="al-table">
+          <div className="al-row th">
+            <span>Почта</span>
+            <span>Участник</span>
+            <span>Доступ</span>
+            <span>Действия</span>
+          </div>
+          {filtered.map((e) => {
+            const p = byEmail.get(e)
+            return (
+              <div className="al-row" key={e}>
+                <span className="al-email" title={e}>{e}</span>
+                <span className="al-member">
+                  {p
+                    ? <><b>{nameOf(p)}</b>{p.username && <span className="al-handle">@{p.username}</span>}</>
+                    : <span className="muted">ещё не вошёл</span>}
+                </span>
+                <span className="al-access">{accessBadge(p)}</span>
+                <span className="al-actions">
+                  {p && <button className="btn btn-ghost sm" onClick={() => onOpenMember?.(p.userId)}>Перейти ›</button>}
+                  <button className="chip-x" title="Убрать почту из списка" onClick={() => remove(e)}>×</button>
+                </span>
+              </div>
+            )
+          })}
+          {filtered.length === 0 && <div className="td-empty">Ничего не найдено</div>}
+        </div>
+      )}
     </div>
   )
 }

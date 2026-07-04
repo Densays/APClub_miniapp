@@ -26,9 +26,17 @@ function Avatar({ p, size = 40 }: { p: Profile; size?: number }) {
   )
 }
 
-export default function Members({ catalog, openId, onConsumedOpen, onLevelsChange }: {
+// Сегменты для фильтра из KPI-карточек дашборда (совпадают с логикой /stats).
+const SEGMENTS: Record<string, { label: string; test: (m: Profile, now: number) => boolean }> = {
+  active: { label: 'Активные', test: (m, now) => typeof m.lastSeenAt === 'number' && now - m.lastSeenAt <= 7 * 86400000 },
+  inactive: { label: 'Неактивные', test: (m, now) => !(typeof m.lastSeenAt === 'number' && now - m.lastSeenAt <= 7 * 86400000) },
+  engaged: { label: 'Вовлечённые', test: (m) => (m.activeDays ?? 0) >= 3 },
+}
+
+export default function Members({ catalog, openId, onConsumedOpen, onLevelsChange, filter = 'all', onClearFilter }: {
   catalog: Catalog | null; openId?: string | null; onConsumedOpen?: () => void
   onLevelsChange?: (levels: string[]) => void
+  filter?: string; onClearFilter?: () => void
 }) {
   const [users, setUsers] = useState<Profile[] | null>(null)
   const [sel, setSel] = useState<Profile | null>(null)
@@ -61,13 +69,16 @@ export default function Members({ catalog, openId, onConsumedOpen, onLevelsChang
   }
 
   const filtered = useMemo(() => {
-    const list = users ?? []
+    const now = Date.now()
+    const seg = SEGMENTS[filter]
+    let list = users ?? []
+    if (seg) list = list.filter((u) => seg.test(u, now))
     const s = q.trim().toLowerCase()
     if (!s) return list
     return list.filter((u) =>
       nameOf(u).toLowerCase().includes(s) ||
       (u.username ?? '').toLowerCase().includes(s) || u.userId.includes(s))
-  }, [users, q])
+  }, [users, q, filter])
 
   if (sel) {
     return <MemberCard key={sel.userId} user={sel} catalog={catalog}
@@ -85,6 +96,12 @@ export default function Members({ catalog, openId, onConsumedOpen, onLevelsChang
       </div>
 
       <input className="input search" placeholder="Поиск по имени, @нику, id" value={q} onChange={(e) => setQ(e.target.value)} />
+      {SEGMENTS[filter] && (
+        <div className="filter-chip">
+          Фильтр: <b>{SEGMENTS[filter].label}</b> · {filtered.length}
+          <button className="chip-x" onClick={() => onClearFilter?.()} title="Сбросить фильтр">×</button>
+        </div>
+      )}
       {err && <div className="err">{err}</div>}
 
       <div className="table">
@@ -210,6 +227,7 @@ function MemberCard({ user, catalog, onBack, onUpdate, onDelete, onLevelsChange 
   const [perks, setPerks] = useState<Perk[]>([])
   const [msg, setMsg] = useState('')
   const [confirmDel, setConfirmDel] = useState(false)
+  const [saving, setSaving] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const cat = catalog?.achievements ?? []
@@ -223,12 +241,22 @@ function MemberCard({ user, catalog, onBack, onUpdate, onDelete, onLevelsChange 
     setForm((f) => ({ ...f, social: { ...f.social, [k]: v } }))
   const flash = (t: string) => setMsg(t)
 
-  async function saveProfile() {
+  // Единое сохранение всех полей карточки одним запросом: профиль + месяц
+  // (setMonth) + срок доступа + достижения/роли. Сервер применяет их в общем
+  // upsert. «Уровни» (общие) и ручные доступы сохраняются отдельно.
+  async function saveAll() {
+    setSaving(true)
     try {
-      const patch: Record<string, unknown> = { social: form.social ?? {}, allowMessages: form.allowMessages !== false, showProfile: form.showProfile !== false, isAdmin: form.isAdmin === true }
+      const patch: Record<string, unknown> = {
+        social: form.social ?? {}, allowMessages: form.allowMessages !== false,
+        showProfile: form.showProfile !== false, isAdmin: form.isAdmin === true,
+        setMonth: month, accessUntil: access ? Date.parse(`${access}T23:59:59`) : null,
+        billingPeriod: period || null, achievements: Array.from(ach), roleTiers,
+      }
       for (const f of FIELDS) patch[f.key] = form[f.key] ?? ''
-      onUpdate(await updateProfile(user.userId, patch)); flash('Профиль сохранён ✓')
-    } catch { flash('Ошибка сохранения профиля') }
+      const p = await updateProfile(user.userId, patch)
+      setAccess(dateToInput(p.accessUntil)); onUpdate(p); flash('Сохранено ✓')
+    } catch { flash('Ошибка сохранения') } finally { setSaving(false) }
   }
   // Кол-во уровней = длине списка названий (минимум 1 для установки месяца).
   const totalLevels = Math.max(1, levels.length)
@@ -245,18 +273,6 @@ function MemberCard({ user, catalog, onBack, onUpdate, onDelete, onLevelsChange 
       if (month > saved.length) setMonth(saved.length)
       flash('Уровни сохранены ✓ — общие для всех участников')
     } catch { flash('Ошибка сохранения уровней') } finally { setSavingLevels(false) }
-  }
-  async function saveMonth() {
-    try { onUpdate(await updateProfile(user.userId, { setMonth: month })); flash(`Открыто месяцев: ${month} ✓`) } catch { flash('Ошибка') }
-  }
-  async function saveAccess(clear = false) {
-    const accessUntil = clear || !access ? null : Date.parse(`${access}T23:59:59`)
-    try { const p = await updateProfile(user.userId, { accessUntil, billingPeriod: period || null }); setAccess(dateToInput(p.accessUntil)); onUpdate(p); flash(clear ? 'Доступ бессрочный ✓' : 'Срок доступа обновлён ✓') }
-    catch { flash('Ошибка') }
-  }
-  async function saveAch() {
-    // achievements — только money-id; прогресс ролей отдельно в roleTiers.
-    try { onUpdate(await updateProfile(user.userId, { achievements: Array.from(ach), roleTiers })); flash('Достижения сохранены ✓') } catch { flash('Ошибка') }
   }
   function setRoleTier(id: string, tier: number) {
     setRoleTiers((r) => ({ ...r, [id]: Math.max(0, Math.min(TIER_MAX, tier)) }))
@@ -329,7 +345,6 @@ function MemberCard({ user, catalog, onBack, onUpdate, onDelete, onLevelsChange 
           <label className="switch"><input type="checkbox" checked={form.showProfile !== false} onChange={(e) => set('showProfile', e.target.checked)} /><span /> Показывать профиль в сообществе</label>
           <label className="switch"><input type="checkbox" checked={form.isAdmin === true} onChange={(e) => set('isAdmin', e.target.checked)} /><span /> 🔑 Администратор (доступ к админке из приложения)</label>
         </div>
-        <button className="btn btn-gold wide" onClick={saveProfile}>Сохранить профиль</button>
       </div>
 
       {/* Прогресс разблокировки + названия уровней (общие) */}
@@ -339,7 +354,6 @@ function MemberCard({ user, catalog, onBack, onUpdate, onDelete, onLevelsChange 
         <div className="row">
           <input className="input num" type="number" min={0} max={totalLevels}
             value={month} onChange={(e) => setMonth(Math.max(0, Math.min(totalLevels, Number(e.target.value))))} />
-          <button className="btn btn-gold" onClick={saveMonth}>Установить месяц</button>
           {month > 0 && levels[month - 1] && <span className="lvl-now">Сейчас: <b className="gold">{levels[month - 1]}</b></span>}
         </div>
 
@@ -373,10 +387,9 @@ function MemberCard({ user, catalog, onBack, onUpdate, onDelete, onLevelsChange 
             <option value="">Период —</option>
             {PERIODS.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
           </select>
-          <button className="btn btn-gold" onClick={() => saveAccess(false)}>Сохранить</button>
         </div>
         <div className="row">
-          <button className="btn btn-ghost sm" onClick={() => saveAccess(true)}>Сделать бессрочным</button>
+          <button className="btn btn-ghost sm" onClick={() => setAccess('')}>Очистить дату (бессрочно)</button>
           {user.access?.active === false
             ? <span className="badge red">доступ истёк</span>
             : user.accessUntil
@@ -421,8 +434,6 @@ function MemberCard({ user, catalog, onBack, onUpdate, onDelete, onLevelsChange 
             )
           })}
         </div>
-
-        <button className="btn btn-gold wide" onClick={saveAch}>Сохранить достижения и роли</button>
       </div>
 
       {/* Доступ к ресурсам */}
@@ -485,6 +496,14 @@ function MemberCard({ user, catalog, onBack, onUpdate, onDelete, onLevelsChange 
           : <div className="row"><span className="confirm">Удалить безвозвратно?</span>
               <button className="btn btn-danger sm" onClick={remove}>Да, удалить</button>
               <button className="btn btn-ghost sm" onClick={() => setConfirmDel(false)}>Отмена</button></div>}
+      </div>
+
+      {/* Единое сохранение всех полей карточки (профиль, месяц, доступ, достижения).
+          «Уровни» и ручные доступы — свои отдельные действия выше. */}
+      <div className="save-bar">
+        <button className="btn btn-gold wide" disabled={saving} onClick={saveAll}>
+          {saving ? 'Сохраняю…' : '💾 Сохранить всё'}
+        </button>
       </div>
     </div>
   )

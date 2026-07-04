@@ -1,5 +1,13 @@
 .community-screen { min-height: 100%; background: var(--bg); }
 
+/* Вкладки «Резиденты» / «Лидеры» */
+.cm-tabs { display: flex; gap: 8px; }
+.cm-tab {
+  flex: 1; padding: 9px 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08);
+  background: var(--card); color: var(--text-dim); font-weight: 600; font-size: 0.9rem; cursor: pointer;
+}
+.cm-tab.on { color: var(--text); border-color: var(--gold-border); background: linear-gradient(180deg, rgba(217,185,116,0.14), rgba(217,185,116,0.04)); }
+
 .cm-body {
   max-width: 480px;
   margin: 0 auto;

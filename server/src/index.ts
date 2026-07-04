@@ -241,6 +241,21 @@ const RESERVED_PREFIX = '__'
 const isReserved = (id: string) => id.startsWith(RESERVED_PREFIX)
 const onlyMembers = (list: Profile[]) => list.filter((p) => !isReserved(p.userId))
 
+// Прячем прямой Telegram-контакт (@username + social.telegram) из профилей,
+// отдаваемых при просмотре (Сообщество/карточка/свайпы). Написать напрямую можно
+// только по взаимному мэтчу — там контакт НЕ вырезаем. Прочие соцсети остаются.
+function stripTelegram<T extends Profile>(p: T): T {
+  const { username, ...rest } = p
+  void username
+  const out = rest as T
+  if (p.social && p.social.telegram) {
+    const social = { ...p.social }
+    delete social.telegram
+    return { ...out, social }
+  }
+  return out
+}
+
 const SHOWCASE_KEY = '__showcase'
 const CATALOG_KEY = '__catalog'
 const STATS_KEY = '__stats'
@@ -370,7 +385,7 @@ app.get('/api/profiles', ah(async (req, res) => {
   const visible = isAdmin(user) ? all : all.filter((p) => p.showProfile !== false)
   // Обогащаем прогрессом (для «текущего статуса в клубе» в списке Сообщества).
   const total = (await getLevels()).length
-  const enriched = visible.map((p) => ({ ...p, unlock: computeUnlock(p, total) }))
+  const enriched = visible.map((p) => ({ ...stripTelegram(p), unlock: computeUnlock(p, total) }))
   res.json({ ok: true, profiles: enriched })
 }))
 
@@ -382,7 +397,9 @@ app.get('/api/profile/:id', ah(async (req, res) => {
   if (p.showProfile === false && !isAdmin(user) && String(user.id) !== String(req.params.id)) {
     return res.status(403).json({ ok: false, error: 'Profile hidden' })
   }
-  res.json({ ok: true, profile: p })
+  // Свой профиль отдаём целиком; чужой — без прямого Telegram-контакта.
+  const out = String(user.id) === String(req.params.id) ? p : stripTelegram(p)
+  res.json({ ok: true, profile: out })
 }))
 
 // ── Нетворкинг: знакомства (свайпы) ──────────────────────────────────────────
@@ -440,7 +457,7 @@ app.get('/api/coffee/candidates', ah(async (req, res) => {
     // не запрошенные мной И не приславшие запрос мне (входящие — в отдельной вкладке)
     .filter((p) => p.showProfile !== false && p.registeredAt && !requested.has(p.userId) && !(p.coffeeLikes ?? []).includes(meId))
     .slice(0, 100)
-    .map((p) => ({ ...p, unlock: computeUnlock(p, total) }))
+    .map((p) => ({ ...stripTelegram(p), unlock: computeUnlock(p, total) }))
   res.json({ ok: true, candidates: cands, quota: coffeeQuota(me) })
 }))
 
@@ -492,7 +509,7 @@ app.get('/api/coffee/incoming', ah(async (req, res) => {
     // отправил запрос мне, я ещё не ответил, и запрос не истёк (24ч)
     .filter((p) => p.userId !== meId && (p.coffeeLikes ?? []).includes(meId) && !myLikes.has(p.userId)
       && !isRequestExpired(p.coffeeLikeAt, meId, now))
-    .map((p) => ({ ...p, unlock: computeUnlock(p, total) }))
+    .map((p) => ({ ...stripTelegram(p), unlock: computeUnlock(p, total) }))
   res.json({ ok: true, incoming })
 }))
 
@@ -539,7 +556,7 @@ app.get('/api/coffee/pending', ah(async (req, res) => {
     .map((id) => byId.get(id))
     // только те, кто ещё НЕ лайкнул меня в ответ (мэтч ушёл бы во вкладку «Мэтчи»)
     .filter((t): t is Profile => !!t && !(t.coffeeLikes ?? []).includes(meId))
-    .map((t) => ({ ...t, unlock: computeUnlock(t, total), pinned: pins.includes(t.userId) }))
+    .map((t) => ({ ...stripTelegram(t), unlock: computeUnlock(t, total), pinned: pins.includes(t.userId) }))
   // Закреплённые — в порядке pins, затем остальные.
   pending.sort((a, b) => {
     const pa = pins.indexOf(a.userId), pb = pins.indexOf(b.userId)

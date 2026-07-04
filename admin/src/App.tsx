@@ -81,17 +81,21 @@ function Shell({ catalog, theme, onToggleTheme, onCatalogChange, onLevelsChange,
 }) {
   const [section, setSection] = useState('dashboard')
   const [openMemberId, setOpenMemberId] = useState<string | null>(null)
+  const [membersFilter, setMembersFilter] = useState('all')
 
-  // Открыть карточку участника (напр. из таблицы лидеров).
+  // Открыть карточку участника (напр. из таблицы лидеров/дашборда/доступа).
   const openMember = (id: string) => { setOpenMemberId(id); setSection('members') }
-  const selectSection = (key: string) => { if (key !== 'members') setOpenMemberId(null); setSection(key) }
+  // Открыть список участников с фильтром по сегменту (клик по KPI-карточке).
+  const openMembers = (filter: string) => { setOpenMemberId(null); setMembersFilter(filter); setSection('members') }
+  // Клик по пункту сайдбара всегда сбрасывает открытого участника (возврат к списку).
+  const selectSection = (key: string) => { setOpenMemberId(null); if (key === 'members') setMembersFilter('all'); setSection(key) }
 
   function render() {
     switch (section) {
-      case 'dashboard': return <Dashboard onOpenMember={openMember} />
-      case 'members': return <Members catalog={catalog} openId={openMemberId} onConsumedOpen={() => setOpenMemberId(null)} onLevelsChange={onLevelsChange} />
+      case 'dashboard': return <Dashboard onOpenMember={openMember} onOpenSegment={openMembers} />
+      case 'members': return <Members catalog={catalog} openId={openMemberId} onConsumedOpen={() => setOpenMemberId(null)} onLevelsChange={onLevelsChange} filter={membersFilter} onClearFilter={() => setMembersFilter('all')} />
       case 'leaders': return <Leaders catalog={catalog} onOpenMember={openMember} />
-      case 'allowlist': return <Allowlist />
+      case 'allowlist': return <Allowlist onOpenMember={openMember} />
       case 'pairs': return <Pairs />
       case 'networking': return <NetworkingAdmin />
       case 'showcase': return <ShowcaseAdmin />

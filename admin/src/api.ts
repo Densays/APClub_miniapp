@@ -59,6 +59,8 @@ export type Profile = {
   createdBy?: 'admin' | 'telegram'
   isAdmin?: boolean
   updatedAt?: number
+  lastSeenAt?: number // последний запуск — для сегментов «активные/неактивные»
+  activeDays?: number // дней активности — для сегмента «вовлечённые»
   unlock?: Unlock
   access?: Access
 }

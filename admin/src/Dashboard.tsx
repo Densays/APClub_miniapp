@@ -1,8 +1,24 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { getStats, getProfiles, type Stats, type Profile } from './api'
 import Icon from './Icon'
 import LineChart from './LineChart'
 import { TgButton } from './TgButton'
+
+// Список платежей с регулируемой высотой (тянуть за нижний край). Высота
+// сохраняется в localStorage, чтобы не сбрасывалась при перезагрузке.
+function PayList({ storageKey, children }: { storageKey: string; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const saved = localStorage.getItem(storageKey)
+    if (saved) el.style.height = `${saved}px`
+    const onUp = () => localStorage.setItem(storageKey, String(el.offsetHeight))
+    el.addEventListener('mouseup', onUp)
+    return () => el.removeEventListener('mouseup', onUp)
+  }, [storageKey])
+  return <div className="pay-list" ref={ref}>{children}</div>
+}
 
 const DAY = 86400000
 const PERIOD_LABEL: Record<string, string> = { monthly: 'мес', quarterly: 'квартал', semiannual: 'полгода', annual: 'год' }
@@ -24,7 +40,7 @@ const KPIS: { key: keyof Stats; label: string; icon: string; suffix?: string; hi
   { key: 'engaged', label: 'Вовлечённые', icon: 'bonus', hint: '3+ дней активности' },
 ]
 
-export default function Dashboard({ onOpenMember }: { onOpenMember?: (id: string) => void }) {
+export default function Dashboard({ onOpenMember, onOpenSegment }: { onOpenMember?: (id: string) => void; onOpenSegment?: (filter: string) => void }) {
   const [s, setS] = useState<Stats | null>(null)
   const [members, setMembers] = useState<Profile[]>([])
   const [err, setErr] = useState('')
@@ -64,14 +80,16 @@ export default function Dashboard({ onOpenMember }: { onOpenMember?: (id: string
         <>
           <div className="kpi-grid">
             {KPIS.map((k) => (
-              <div className="kpi" key={k.key}>
+              <button className="kpi kpi-btn" key={k.key}
+                onClick={() => onOpenSegment?.(k.key === 'total' ? 'all' : (k.key as string))}
+                title="Показать участников этого сегмента">
                 <div className="kpi-top">
                   <span className="kpi-label">{k.label}</span>
                   <span className="kpi-icon"><Icon name={k.icon} size={16} /></span>
                 </div>
                 <div className="kpi-value">{s[k.key] as number}{k.suffix ?? ''}</div>
-                <div className="kpi-hint">{k.hint}</div>
-              </div>
+                <div className="kpi-hint">{k.hint} ›</div>
+              </button>
             ))}
           </div>
 
@@ -120,7 +138,7 @@ export default function Dashboard({ onOpenMember }: { onOpenMember?: (id: string
               {active.length === 0 ? (
                 <div className="hint">Нет резидентов с заданной датой платежа. Задай «Срок доступа / платёж» в карточке участника.</div>
               ) : (
-                <div className="pay-list">
+                <PayList storageKey="apclub-payh-active">
                   {active.map((m) => {
                     const d = daysTo(m.accessUntil as number)
                     const urg = Math.max(0.05, Math.min(1, 1 - d / 90))
@@ -137,7 +155,7 @@ export default function Dashboard({ onOpenMember }: { onOpenMember?: (id: string
                       </div>
                     )
                   })}
-                </div>
+                </PayList>
               )}
             </div>
             <div className="card">
@@ -145,7 +163,7 @@ export default function Dashboard({ onOpenMember }: { onOpenMember?: (id: string
               {overdue.length === 0 ? (
                 <div className="hint">Просрочек нет 👍</div>
               ) : (
-                <div className="pay-list">
+                <PayList storageKey="apclub-payh-overdue">
                   {overdue.map((m) => {
                     const d = -daysTo(m.accessUntil as number)
                     return (
@@ -160,7 +178,7 @@ export default function Dashboard({ onOpenMember }: { onOpenMember?: (id: string
                       </div>
                     )
                   })}
-                </div>
+                </PayList>
               )}
             </div>
           </div>
