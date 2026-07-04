@@ -48,6 +48,7 @@ export default function MemberProfile({
   const socials = SOCIAL_LABELS.filter(({ key }) => p?.social?.[key])
   // Звёзды: полученные money-достижения + роли, доведённые до Тира 5.
   const earnedList = starItems(p, CATALOG)
+  const earnedSet = new Set(earnedList.map((a) => a.id))
 
   return (
     <div className="member-profile">
@@ -89,17 +90,20 @@ export default function MemberProfile({
                 <div className="mp-ach-stars">
                   <Stars filled={earnedList.length} total={CATALOG.length} size={16} />
                 </div>
-                {earnedList.length > 0 ? (
-                  <div className="mp-ach-list">
-                    {earnedList.map((a) => (
-                      <div className="mp-ach-item" key={a.id}>
-                        <span className="mp-ach-ico">{a.icon}</span>
-                        <span className="mp-ach-name">{a.title}</span>
-                      </div>
-                    ))}
+                {CATALOG.length > 0 ? (
+                  <div className="mp-ach-grid">
+                    {CATALOG.map((a) => {
+                      const earned = earnedSet.has(a.id)
+                      return (
+                        <div className={`mp-ach-sq${earned ? ' earned' : ''}`} key={a.id} title={a.title}>
+                          <span className="mp-ach-sq-ico">{a.icon}</span>
+                          <span className="mp-ach-sq-name">{a.title}</span>
+                        </div>
+                      )
+                    })}
                   </div>
                 ) : (
-                  <div className="mp-ach-empty">Пока нет достижений</div>
+                  <div className="mp-ach-empty">Достижений пока нет в каталоге</div>
                 )}
               </div>
             </div>

@@ -81,29 +81,41 @@
 /* Достижения участника */
 .mp-ach { display: flex; flex-direction: column; gap: 14px; }
 .mp-ach-stars { line-height: 1; }
-/* Достижения — плашками (wrap-строка пилюль), а не вертикальным списком */
-.mp-ach-list { display: flex; flex-wrap: wrap; gap: 8px; }
-.mp-ach-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  background: rgba(217, 185, 116, 0.1);
-  border: 1px solid var(--gold-border);
-  border-radius: 999px;
-  padding: 6px 12px 6px 8px;
-}
-.mp-ach-ico {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: rgba(217, 185, 116, 0.18);
+/* Достижения — сетка квадратов по 4 в ряд: полученные яркие, неполученные тёмные */
+.mp-ach-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.mp-ach-sq {
+  aspect-ratio: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
-  flex-shrink: 0;
+  gap: 4px;
+  padding: 6px 4px;
+  border-radius: 12px;
+  background: var(--card-2);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  text-align: center;
+  opacity: 0.45;
+  filter: grayscale(0.5);
 }
-.mp-ach-name { font-size: 0.86rem; font-weight: 600; color: var(--text); white-space: nowrap; }
+.mp-ach-sq.earned {
+  opacity: 1;
+  filter: none;
+  background: rgba(217, 185, 116, 0.14);
+  border-color: var(--gold-border);
+  box-shadow: 0 0 0 1px var(--gold-border), 0 4px 14px rgba(217, 185, 116, 0.12);
+}
+.mp-ach-sq-ico { font-size: 22px; line-height: 1; }
+.mp-ach-sq-name {
+  font-size: 0.56rem;
+  line-height: 1.15;
+  color: var(--text-dim);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.mp-ach-sq.earned .mp-ach-sq-name { color: var(--text); }
 .mp-ach-empty { color: var(--text-dim); font-size: 0.95rem; }
 
 .mp-socials { display: flex; flex-direction: column; gap: 2px; padding: 6px 20px; }
