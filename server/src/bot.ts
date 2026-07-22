@@ -12,6 +12,8 @@ import type { Profile } from './store.ts'
 
 const BOT_TOKEN = process.env.BOT_TOKEN ?? ''
 const IS_VERCEL = Boolean(process.env.VERCEL) // на Vercel — webhook вместо polling
+// Админы (те же id, что и в index.ts) — получают DM о каждой регистрации на эфир.
+const ADMIN_IDS = (process.env.ADMIN_IDS ?? '').split(',').map((s) => s.trim()).filter(Boolean)
 // Баннеры — из зашитого base64 (не читаем с ФС, работает на serverless).
 const WELCOME_BUF = Buffer.from(WELCOME_JPEG_BASE64, 'base64')
 const CLUBLINKS_BUF = Buffer.from(CLUBLINKS_JPEG_BASE64, 'base64')
@@ -201,6 +203,18 @@ export async function sendNetworkingRequest(toId: string, fromName: string, from
   const rows: Record<string, unknown>[][] = [[{ text: '✅ Подтвердить', callback_data: `nwok:${fromId}` }]]
   if (isHttps(MINIAPP_URL)) rows.push([{ text: '📲 Открыть приложение', web_app: { url: MINIAPP_URL } }])
   await tgSend('sendMessage', { chat_id: toId, text, parse_mode: 'HTML', reply_markup: { inline_keyboard: rows } })
+}
+
+// ── Регистрация на «Эфир в клубе» ─────────────────────────────────────────────
+// DM всем админам (ADMIN_IDS) сразу при регистрации — чтобы видеть список
+// пришедших в реальном времени (полный список — в веб-админке).
+export async function sendEfirRegistrationAlert(name: string, username: string | undefined, dateKey: string, time: string): Promise<void> {
+  if (!ADMIN_IDS.length) return
+  const who = username ? `@${escapeHtml(username)}` : 'без ника'
+  const [y, m, d] = dateKey.split('-')
+  const text =
+    `📋 <b>Регистрация на Эфир в клубе</b>\n${escapeHtml(name)} (${who})\n${d}.${m}.${y}, ${time} МСК`
+  await Promise.all(ADMIN_IDS.map((id) => tgSend('sendMessage', { chat_id: id, text, parse_mode: 'HTML' })))
 }
 
 // Подтверждение знакомства (из бота-кнопки ИЛИ из приложения): meId отвечает
@@ -398,6 +412,39 @@ export async function publishChannelEntry(): Promise<{ ok: boolean; posted: bool
     return { ok: true, posted: true, pinned: Boolean(d.ok), error: d.ok ? undefined : d.description }
   } catch (e) {
     return { ok: true, posted: true, pinned: false, error: (e as Error).message }
+  }
+}
+
+// Опубликовать ПРОИЗВОЛЬНЫЙ анонс в канал (текст + опц. картинка) с той же
+// кнопкой «Войти» (→ мини-приложение), что и закреплённое приветствие. В отличие
+// от sendBanner — картинка одноразовая (не кешируем file_id: у каждого анонса
+// своя). Не закрепляет — обычный пост в ленту канала.
+export async function publishChannelCustom(caption: string, image?: string): Promise<{ ok: boolean; posted: boolean; error?: string }> {
+  if (!BOT_TOKEN) return { ok: false, posted: false, error: 'no_token' }
+  if (!CHANNEL_ID) return { ok: false, posted: false, error: 'no_channel' }
+  const reply_markup = channelKeyboard()
+  const img = /^data:(image\/[a-zA-Z.+-]+);base64,(.+)$/.exec(image ?? '')
+  try {
+    if (img) {
+      const buf = Buffer.from(img[2], 'base64')
+      const ext = img[1].split('/')[1]?.split('+')[0] || 'jpg'
+      const form = new FormData()
+      form.append('chat_id', CHANNEL_ID)
+      if (caption) { form.append('caption', caption); form.append('parse_mode', 'HTML') }
+      if (reply_markup) form.append('reply_markup', JSON.stringify(reply_markup))
+      form.append('photo', new Blob([new Uint8Array(buf)], { type: img[1] }), `banner.${ext}`)
+      const r = await fetch(TG('sendPhoto'), { method: 'POST', body: form })
+      const d = (await r.json().catch(() => ({}))) as { ok?: boolean; description?: string }
+      return d.ok ? { ok: true, posted: true } : { ok: false, posted: false, error: d.description }
+    }
+    const r = await fetch(TG('sendMessage'), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: CHANNEL_ID, text: caption, parse_mode: 'HTML', disable_web_page_preview: true, reply_markup }),
+    })
+    const d = (await r.json().catch(() => ({}))) as { ok?: boolean; description?: string }
+    return d.ok ? { ok: true, posted: true } : { ok: false, posted: false, error: d.description }
+  } catch (e) {
+    return { ok: false, posted: false, error: (e as Error).message }
   }
 }
 

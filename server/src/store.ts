@@ -82,6 +82,9 @@ export type Profile = {
   email?: string // почта — для проверки доступа на платформе
   registeredAt?: number // момент завершения регистрации (есть → онбординг пройден)
   updatedAt?: number
+  // Регистрации на «Эфир в клубе» (Чт 19:00 МСК): ключ — дата эфира (YYYY-MM-DD,
+  // МСК). Заполняется формой входа в мини-аппе, не пользователем напрямую.
+  efirRegs?: Record<string, { name: string; username?: string; ts: number }>
 }
 
 // Поля, которые пользователь может изменять сам (без служебных userId/updatedAt).

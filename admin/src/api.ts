@@ -307,6 +307,15 @@ export async function publishChannel(): Promise<{ ok: boolean; posted: boolean; 
   return (await r.json().catch(() => ({ ok: false, posted: false, pinned: false, error: 'network' })))
 }
 
+// Произвольный анонс в канал (текст + опц. картинка) с кнопкой «Войти» →
+// мини-приложение. Не закрепляется — обычный пост в ленту.
+export async function publishChannelCustom(text: string, image?: string): Promise<{ ok: boolean; posted: boolean; error?: string }> {
+  const r = await fetch(`${API_BASE}/api/admin/channel/publish-custom`, {
+    method: 'POST', headers: headers(), body: JSON.stringify({ text, image }),
+  })
+  return (await r.json().catch(() => ({ ok: false, posted: false, error: 'network' })))
+}
+
 export async function testNotification(chatId: string, text: string, image?: string): Promise<{ ok: boolean; error?: string }> {
   const r = await fetch(`${API_BASE}/api/admin/notifications/test`, {
     method: 'POST', headers: headers(), body: JSON.stringify({ chatId, text, image }),
@@ -342,6 +351,17 @@ export async function saveAllowlist(emails: string[]): Promise<string[]> {
   })
   if (!r.ok) throw new Error(`Список почт не сохранился (${r.status})`)
   return ((await r.json()).emails as string[]) ?? []
+}
+
+// ── Регистрации на «Эфир в клубе» ────────────────────────────────────────────
+export type EfirRegistration = { userId: string; name: string; username?: string; ts: number }
+export async function getEfirRegistrations(date?: string): Promise<{ date: string; time: string; registrations: EfirRegistration[] }> {
+  const qs = date ? `?date=${encodeURIComponent(date)}` : ''
+  const r = await fetch(`${API_BASE}/api/admin/efir${qs}`, { headers: headers() })
+  if (r.status === 401) throw new Error('unauth')
+  if (!r.ok) throw new Error(`Список не загрузился (${r.status})`)
+  const d = await r.json()
+  return { date: d.date, time: d.time, registrations: (d.registrations as EfirRegistration[]) ?? [] }
 }
 
 export type BuddyMember = { id: string; name: string; buddyId: string; buddyName: string; needsFix?: boolean }

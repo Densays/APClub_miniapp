@@ -62,6 +62,9 @@ export const LINKS = {
   chat: 'https://t.me/+2I03_UzJMSw2ZDYy',
   arbix: 'https://www.arbix.pro/',
   razbor: 'https://apcrypto.club/razborsave',
+  // Комната «Эфир в клубе» (Zoom). Открывается только после формы входа —
+  // см. EfirJoinModal.
+  efirRoom: 'https://us06web.zoom.us/j/86599061251?pwd=Kzhkb7XaYgcsbNLZbU8wlodETJRu1H.1',
 }
 
 // Открыть внешнюю ссылку (в Telegram — через нативный API, иначе новая вкладка).
@@ -111,11 +114,11 @@ export const achievements: Achievement[] = [
 ]
 
 // Ближайшая встреча для таймера «До встречи».
-// Расписание по МСК (UTC+3): Ср 15:00 и Чт 19:00. Возвращает абсолютный момент
+// Расписание по МСК (UTC+3): Ср 17:00 и Чт 19:00. Возвращает абсолютный момент
 // (timestamp), поэтому таймер считает корректно в любом часовом поясе зрителя.
 export function getNextMeeting(): number {
   const meetings = [
-    { dow: 3, h: 15 }, // среда 15:00 МСК
+    { dow: 3, h: 17 }, // среда 17:00 МСК
     { dow: 4, h: 19 }, // четверг 19:00 МСК
   ]
   const now = Date.now()

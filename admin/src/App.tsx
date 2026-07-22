@@ -10,6 +10,7 @@ import Notifications from './Notifications'
 import Allowlist from './Allowlist'
 import Pairs from './Pairs'
 import NetworkingAdmin from './NetworkingAdmin'
+import EfirRegistrations from './EfirRegistrations'
 
 type Theme = 'dark' | 'light'
 
@@ -96,6 +97,7 @@ function Shell({ catalog, theme, onToggleTheme, onCatalogChange, onLevelsChange,
       case 'members': return <Members catalog={catalog} openId={openMemberId} onConsumedOpen={() => setOpenMemberId(null)} onLevelsChange={onLevelsChange} filter={membersFilter} onClearFilter={() => setMembersFilter('all')} />
       case 'leaders': return <Leaders catalog={catalog} onOpenMember={openMember} />
       case 'allowlist': return <Allowlist onOpenMember={openMember} />
+      case 'efir': return <EfirRegistrations />
       case 'pairs': return <Pairs />
       case 'networking': return <NetworkingAdmin />
       case 'showcase': return <ShowcaseAdmin />

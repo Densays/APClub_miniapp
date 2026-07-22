@@ -19,7 +19,7 @@ import {
   EVENT_DEFS,
   type EventId,
 } from './notifications.ts'
-import { startBot, channelStatus, publishChannelEntry, handleUpdate, setWebhook, fetchUsername, sendNetworkingRequest, confirmNetworking, flushFollowups } from './bot.ts'
+import { startBot, channelStatus, publishChannelEntry, publishChannelCustom, handleUpdate, setWebhook, fetchUsername, sendNetworkingRequest, confirmNetworking, flushFollowups, sendEfirRegistrationAlert } from './bot.ts'
 
 const app = express()
 const PORT = Number(process.env.PORT) || 3000
@@ -269,6 +269,20 @@ function dayKey(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10)
 }
 const DAY_MS = 24 * 60 * 60 * 1000
+
+// «Эфир в клубе»: Чт 19:00 МСК (зеркалит EVENT_DEFS.efir в notifications.ts).
+const EFIR_TIME = '19:00'
+const EFIR_MSK_OFFSET = 3 * 3600 * 1000
+// Дата (YYYY-MM-DD, МСК) ближайшего эфира: сегодня, если ещё не наступил
+// (или идёт), иначе следующий четверг.
+function nextEfirDateKey(now = Date.now()): string {
+  const d = new Date(now + EFIR_MSK_OFFSET)
+  const dow = d.getUTCDay() // Чт = 4
+  let addDays = (4 - dow + 7) % 7
+  if (addDays === 0 && d.getUTCHours() >= 19) addDays = 7 // сегодняшний эфир уже прошёл
+  const target = new Date(d.getTime() + addDays * DAY_MS)
+  return `${target.getUTCFullYear()}-${String(target.getUTCMonth() + 1).padStart(2, '0')}-${String(target.getUTCDate()).padStart(2, '0')}`
+}
 
 // Ключ месяца YYYY-MM со сдвигом на delta месяцев (для трендов retention/churn).
 function ymKey(ms: number, delta = 0): string {
@@ -584,6 +598,37 @@ app.post('/api/coffee/pin', ah(async (req, res) => {
   res.json({ ok: true, pins })
 }))
 
+// ── Регистрация на «Эфир в клубе» ────────────────────────────────────────────
+// Вместо прямой ссылки на комнату — форма (имя + авто-ник Telegram). Жмёт
+// «Войти» → сохраняем запись за пользователем (для админ-списка/аналитики) +
+// шлём DM админам, и только потом отдаём ссылку на комнату для редиректа.
+app.post('/api/efir/register', ah(async (req, res) => {
+  const user = resolveUser(req)
+  if (!user) return res.status(401).json({ ok: false, error: 'Unauthorized' })
+  const name = String((req.body as Record<string, unknown>)?.name ?? '').trim().slice(0, 120)
+  if (!name) return res.status(400).json({ ok: false, error: 'name_required' })
+  const meId = String(user.id)
+  const dateKey = nextEfirDateKey()
+  const prev = await store.get(meId)
+  const regs = { ...(prev?.efirRegs ?? {}) }
+  regs[dateKey] = { name, username: user.username, ts: Date.now() }
+  await store.upsert(meId, { efirRegs: regs })
+  sendEfirRegistrationAlert(name, user.username, dateKey, EFIR_TIME).catch(() => {})
+  res.json({ ok: true, dateKey })
+}))
+
+// Список зарегистрировавшихся на эфир (админ). ?date=YYYY-MM-DD — по умолчанию
+// ближайший эфир.
+app.get('/api/admin/efir', ah(async (req, res) => {
+  if (!(await requireAdmin(req, res))) return
+  const dateKey = String(req.query.date ?? '').trim() || nextEfirDateKey()
+  const regs = onlyMembers(await store.list())
+    .filter((p) => p.efirRegs?.[dateKey])
+    .map((p) => ({ userId: p.userId, ...p.efirRegs![dateKey] }))
+    .sort((a, b) => a.ts - b.ts)
+  res.json({ ok: true, date: dateKey, time: EFIR_TIME, registrations: regs })
+}))
+
 // ── Браузерная админка (deploy в apk-lab) ────────────────────────────────────
 
 // Анти-брутфорс логина: N неудач с одного IP → временная блокировка. In-memory
@@ -846,6 +891,18 @@ app.post('/api/admin/channel/publish', ah(async (req, res) => {
   if (!(await requireAdmin(req, res))) return
   const result = await publishChannelEntry()
   res.json(result)
+}))
+
+// Опубликовать произвольный анонс в канал (текст + опц. картинка) с кнопкой
+// «Войти» → мини-приложение (та же ссылка/кнопка, что у закреплённого
+// приветствия). Не закрепляется — обычный пост.
+app.post('/api/admin/channel/publish-custom', ah(async (req, res) => {
+  if (!(await requireAdmin(req, res))) return
+  const body = (req.body ?? {}) as { text?: string; image?: string }
+  const text = String(body.text ?? '').trim().slice(0, 4000)
+  const image = typeof body.image === 'string' ? body.image : undefined
+  if (!text && !image) return res.json({ ok: false, posted: false, error: 'empty' })
+  res.json(await publishChannelCustom(text, image))
 }))
 
 // ── Бот: webhook (serverless) + установка вебхука ─────────────────────────────

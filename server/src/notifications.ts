@@ -44,7 +44,7 @@ type EventDef = {
   defaultTemplate: string
 }
 export const EVENT_DEFS: EventDef[] = [
-  { id: 'sreda', title: 'Онлайн-среда', dow: 3, time: '15:00', defaultHour: 10,
+  { id: 'sreda', title: 'Онлайн-среда', dow: 3, time: '17:00', defaultHour: 10,
     defaultTemplate: '🎙️ Сегодня Онлайн-среда в {time} МСК. Подключайся к эфиру резидентов!' },
   { id: 'efir', title: 'Эфир в клубе', dow: 4, time: '19:00', defaultHour: 10,
     defaultTemplate: '🎥 Сегодня Эфир в клубе в {time} МСК. Не пропусти разбор!' },

@@ -1,0 +1,29 @@
+.ej-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.72);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 60; padding: 24px;
+}
+.ej-card {
+  background: var(--card); border: 1px solid var(--gold-border); border-radius: 24px;
+  padding: 26px 22px; max-width: 340px; width: 100%;
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+}
+.ej-icon { font-size: 32px; }
+.ej-title { font-family: var(--font-display); font-size: 1.15rem; font-weight: 800; color: var(--gold); text-align: center; margin-bottom: 6px; }
+
+.ej-field { width: 100%; display: flex; flex-direction: column; gap: 6px; font-size: 0.78rem; color: var(--text-dim); }
+.ej-field input {
+  background: var(--card-2); border: 1px solid var(--gold-border); border-radius: 12px;
+  padding: 11px 13px; color: var(--text); font-size: 0.92rem; font-family: inherit;
+}
+.ej-field input:focus { outline: none; border-color: var(--gold); }
+.ej-readonly { opacity: 0.7; }
+
+.ej-err { font-size: 0.78rem; color: #e07a7a; text-align: center; }
+
+.ej-submit {
+  margin-top: 4px; width: 100%; background: var(--gold); color: #1c1608; border: none;
+  border-radius: 14px; padding: 13px; font-weight: 700; font-size: 1rem; cursor: pointer; font-family: inherit;
+}
+.ej-submit:disabled { opacity: 0.5; cursor: default; }
+.ej-cancel { background: none; border: none; color: var(--text-muted); font-size: 0.86rem; cursor: pointer; padding: 4px; font-family: inherit; }

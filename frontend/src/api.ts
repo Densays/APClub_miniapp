@@ -198,6 +198,18 @@ export async function getProfileById(id: string): Promise<ProfileData> {
   return data.profile as ProfileData
 }
 
+// Регистрация на «Эфир в клубе»: сохраняет имя+tg-ник за пользователем (для
+// админ-списка/аналитики) и шлёт DM админам. Ссылку на комнату открывает клиент
+// после успешного ответа (см. LINKS.efirRoom).
+export async function registerEfir(name: string): Promise<{ dateKey: string }> {
+  const r = await fetch(`${API_BASE}/api/efir/register`, {
+    method: 'POST', headers: authHeaders(), body: JSON.stringify({ name }),
+  })
+  const data = await r.json().catch(() => ({}))
+  if (!r.ok || !data.ok) throw new Error(data.error || `efir register failed: ${r.status}`)
+  return { dateKey: data.dateKey as string }
+}
+
 // Фиксируем запуск приложения (для дашборда админки). Вызывается один раз при
 // старте. Ошибки глушим — трекинг не должен ломать вход.
 export async function recordLaunch(): Promise<void> {

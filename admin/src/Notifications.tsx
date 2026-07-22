@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import {
   getNotifications, saveNotifications, sendNotification, sendCustomNotification, testNotification, fileToBanner,
-  getChannelStatus, publishChannel,
+  getChannelStatus, publishChannel, publishChannelCustom,
   type NotifData, type NotifConfig, type NotifEventId, type NotifOccurrence, type SendReport, type CustomNotif, type ChannelStatus,
 } from './api'
 
 const EVENT_META: Record<NotifEventId, { title: string; hint: string; vars: string }> = {
-  sreda:    { title: 'Онлайн-среда',   hint: 'Ср 15:00 МСК',        vars: '{time}' },
+  sreda:    { title: 'Онлайн-среда',   hint: 'Ср 17:00 МСК',        vars: '{time}' },
   efir:     { title: 'Эфир в клубе',   hint: 'Чт 19:00 МСК',        vars: '{time}' },
   birthday: { title: 'День рождения',  hint: 'в день ДР резидента', vars: '{name}' },
   weekplan: { title: 'План недели',    hint: 'Пн',                  vars: '—' },
@@ -107,6 +107,17 @@ export default function Notifications() {
     setSending(key); setMsg(''); setErr('')
     try { setMsg(reportText(await sendCustomNotification(text, image, progress))) }
     catch (e) { setErr((e as Error).message) }
+    finally { setSending('') }
+  }
+
+  // Публикация того же анонса в канал (пост с кнопкой «Войти» → мини-приложение).
+  async function publishToChannel(text: string, image: string | undefined, key: string) {
+    if (!text.trim() && !image) { setErr('Пустое уведомление — добавь текст или картинку'); return }
+    setSending(key); setMsg(''); setErr('')
+    try {
+      const r = await publishChannelCustom(text, image)
+      setMsg(r.ok && r.posted ? 'Опубликовано в канале ✓' : channelErrText(r.error))
+    } catch (e) { setErr((e as Error).message) }
     finally { setSending('') }
   }
 
@@ -270,7 +281,7 @@ export default function Notifications() {
 
       {/* Произвольное уведомление: композер + сохранённый список */}
       <div className="card">
-        <div className="card-t">Произвольное уведомление <span className="dim">(разовая рассылка всем резидентам)</span></div>
+        <div className="card-t">Произвольное уведомление <span className="dim">(разово — резидентам в личку и/или постом в канал)</span></div>
 
         <div className="nf-ev nf-compose">
           <input
@@ -294,6 +305,11 @@ export default function Notifications() {
               <button className="btn sm btn-ghost" disabled={busy('test:draft')}
                 onClick={() => doTest(draft.text, draft.image, 'test:draft')}>Тест себе</button>
               <button className="btn sm btn-ghost" onClick={addFromDraft}>В список</button>
+              <button className="btn sm btn-ghost" disabled={busy('channel:draft') || !channel?.canPost}
+                title={channel?.canPost ? 'Опубликовать в канале с кнопкой «Войти»' : 'Канал не настроен или нет прав — см. раздел выше'}
+                onClick={() => publishToChannel(draft.text, draft.image, 'channel:draft')}>
+                {busy('channel:draft') ? 'Публикуем…' : '📣 В канал'}
+              </button>
               <button className="btn sm btn-gold" disabled={busy('send:draft')}
                 onClick={() => sendAll(draft.text, draft.image, 'send:draft')}>
                 {busy('send:draft') ? 'Отправка…' : 'Отправить всем'}
@@ -323,6 +339,11 @@ export default function Notifications() {
                     <div className="nf-ev-foot-r">
                       <button className="btn sm btn-ghost" disabled={busy(tk)}
                         onClick={() => doTest(c.text, c.image, tk)}>Тест себе</button>
+                      <button className="btn sm btn-ghost" disabled={busy(`channel:${c.id}`) || !channel?.canPost}
+                        title={channel?.canPost ? 'Опубликовать в канале с кнопкой «Войти»' : 'Канал не настроен или нет прав — см. раздел выше'}
+                        onClick={() => publishToChannel(c.text, c.image, `channel:${c.id}`)}>
+                        {busy(`channel:${c.id}`) ? 'Публикуем…' : '📣 В канал'}
+                      </button>
                       <button className="btn sm btn-gold" disabled={busy(sk)}
                         onClick={() => sendAll(c.text, c.image, sk)}>
                         {busy(sk) ? 'Отправка…' : 'Отправить всем'}

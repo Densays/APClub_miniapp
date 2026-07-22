@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import './Calendar.css'
 import { getProfiles } from '../api'
 import { LINKS, openLink } from '../mock'
+import EfirJoinModal from './EfirJoinModal'
 
 const MONTHS = [
   'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
@@ -25,7 +26,7 @@ function bdKey(bd?: string): string | null {
   return null
 }
 
-type Ev = { icon: string; title: string; text: string; record?: boolean }
+type Ev = { icon: string; title: string; text: string; record?: boolean; join?: boolean }
 
 export default function Calendar({ date = new Date() }: { date?: Date }) {
   const year = date.getFullYear()
@@ -34,6 +35,7 @@ export default function Calendar({ date = new Date() }: { date?: Date }) {
 
   const [selected, setSelected] = useState(today)
   const [birthdays, setBirthdays] = useState<Record<string, string[]>>({})
+  const [showJoin, setShowJoin] = useState(false)
 
   useEffect(() => {
     let alive = true
@@ -68,8 +70,8 @@ export default function Calendar({ date = new Date() }: { date?: Date }) {
     if (names?.length) evs.push({ icon: '🎂', title: 'День рождения', text: `у резидента APClub ${names.join(', ')}` })
     if (dow === 1) evs.push({ icon: '📝', title: 'Начало недели', text: 'Поставь план на неделю' })
     const past = selected < today // день уже прошёл (текущий месяц) → есть запись
-    if (dow === 3) evs.push({ icon: '🎙️', title: 'Онлайн-среда', text: 'Онлайн-среда, 15:00 МСК', record: past })
-    if (dow === 4) evs.push({ icon: '🎥', title: 'Эфир в клубе', text: 'Эфир в клубе, 19:00 МСК', record: past })
+    if (dow === 3) evs.push({ icon: '🎙️', title: 'Онлайн-среда', text: 'Онлайн-среда, 17:00 МСК', record: past })
+    if (dow === 4) evs.push({ icon: '🎥', title: 'Эфир в клубе', text: 'Эфир в клубе, 19:00 МСК', record: past, join: !past })
     if (dow === 0) evs.push({ icon: '✅', title: 'Итоги недели', text: 'Подведи итоги недели' })
     return evs
   }, [selected, birthdays, year, month])
@@ -123,6 +125,9 @@ export default function Calendar({ date = new Date() }: { date?: Date }) {
                   {e.record && (
                     <button className="cal-ev-rec" onClick={() => openLink(LINKS.streams)}>▶ Посмотреть запись</button>
                   )}
+                  {e.join && (
+                    <button className="cal-ev-rec" onClick={() => setShowJoin(true)}>Войти →</button>
+                  )}
                 </span>
               </div>
             ))}
@@ -131,6 +136,7 @@ export default function Calendar({ date = new Date() }: { date?: Date }) {
           <div className="cal-ev-empty">Событий нет</div>
         )}
       </div>
+      {showJoin && <EfirJoinModal onClose={() => setShowJoin(false)} />}
     </div>
   )
 }
