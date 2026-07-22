@@ -311,6 +311,20 @@ textarea.input { resize: vertical; }
 .nf-saved-t { font-size: 12px; color: var(--gray2); text-transform: uppercase; letter-spacing: 1px; }
 .nf-saved .nf-ev { display: flex; flex-direction: column; gap: 9px; }
 
+/* Вкладки «Отправка в боты» / «В канал» */
+.nf-tabs { display: flex; gap: 6px; margin: 4px 0 14px; }
+.nf-tab {
+  background: var(--panel2); border: 1px solid var(--line); color: var(--gray);
+  border-radius: 9px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
+}
+.nf-tab:hover { color: var(--text); }
+.nf-tab.active { background: var(--gold-soft); border-color: var(--gold); color: var(--gold); }
+
+/* Поля кнопки анонса в канале (текст + ссылка) */
+.nf-btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.nf-btn-field { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--gray); flex: 1; min-width: 140px; }
+.nf-btn-field-url { flex: 2; min-width: 220px; }
+
 /* Приветствие в канал */
 .nf-chan-grid { display: flex; flex-direction: column; gap: 8px; }
 .nf-chan-row { display: flex; justify-content: space-between; align-items: center; font-size: 13.5px; padding: 6px 0; border-bottom: 1px solid var(--line); }

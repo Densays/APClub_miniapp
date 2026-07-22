@@ -293,7 +293,7 @@ export async function sendCustomNotification(
 }
 
 export type ChannelStatus = {
-  configured: boolean; hasLink: boolean; channelId: string
+  configured: boolean; hasLink: boolean; link?: string; channelId: string
   isAdmin: boolean; canPost: boolean; canPin: boolean; title?: string; error?: string
 }
 export async function getChannelStatus(): Promise<ChannelStatus> {
@@ -307,18 +307,23 @@ export async function publishChannel(): Promise<{ ok: boolean; posted: boolean; 
   return (await r.json().catch(() => ({ ok: false, posted: false, pinned: false, error: 'network' })))
 }
 
-// Произвольный анонс в канал (текст + опц. картинка) с кнопкой «Войти» →
-// мини-приложение. Не закрепляется — обычный пост в ленту.
-export async function publishChannelCustom(text: string, image?: string): Promise<{ ok: boolean; posted: boolean; error?: string }> {
+// Произвольный анонс в канал (текст + опц. картинка) с кнопкой — свои
+// текст+ссылка (buttonText/buttonUrl), либо дефолт «Войти» → мини-приложение,
+// если не заданы. Не закрепляется — обычный пост в ленту.
+export async function publishChannelCustom(
+  text: string, image?: string, buttonText?: string, buttonUrl?: string,
+): Promise<{ ok: boolean; posted: boolean; error?: string }> {
   const r = await fetch(`${API_BASE}/api/admin/channel/publish-custom`, {
-    method: 'POST', headers: headers(), body: JSON.stringify({ text, image }),
+    method: 'POST', headers: headers(), body: JSON.stringify({ text, image, buttonText, buttonUrl }),
   })
   return (await r.json().catch(() => ({ ok: false, posted: false, error: 'network' })))
 }
 
-export async function testNotification(chatId: string, text: string, image?: string): Promise<{ ok: boolean; error?: string }> {
+export async function testNotification(
+  chatId: string, text: string, image?: string, buttonText?: string, buttonUrl?: string,
+): Promise<{ ok: boolean; error?: string }> {
   const r = await fetch(`${API_BASE}/api/admin/notifications/test`, {
-    method: 'POST', headers: headers(), body: JSON.stringify({ chatId, text, image }),
+    method: 'POST', headers: headers(), body: JSON.stringify({ chatId, text, image, buttonText, buttonUrl }),
   })
   return (await r.json().catch(() => ({ ok: false, error: 'network' }))) as { ok: boolean; error?: string }
 }

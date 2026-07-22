@@ -351,6 +351,7 @@ async function getBotId(): Promise<number | null> {
 export type ChannelStatus = {
   configured: boolean // задан ли CHANNEL_ID
   hasLink: boolean // задана ли ссылка входа (MINIAPP_LINK)
+  link?: string // сама ссылка (не секрет — подставляется по умолчанию в кнопку анонса)
   channelId: string
   isAdmin: boolean
   canPost: boolean
@@ -362,7 +363,7 @@ export type ChannelStatus = {
 // Проверка: бот — админ канала с правами постить и закреплять.
 export async function channelStatus(): Promise<ChannelStatus> {
   const base: ChannelStatus = {
-    configured: Boolean(CHANNEL_ID), hasLink: Boolean(MINIAPP_LINK), channelId: CHANNEL_ID,
+    configured: Boolean(CHANNEL_ID), hasLink: Boolean(MINIAPP_LINK), link: MINIAPP_LINK || undefined, channelId: CHANNEL_ID,
     isAdmin: false, canPost: false, canPin: false,
   }
   if (!BOT_TOKEN || !CHANNEL_ID) return base
@@ -415,37 +416,70 @@ export async function publishChannelEntry(): Promise<{ ok: boolean; posted: bool
   }
 }
 
-// Опубликовать ПРОИЗВОЛЬНЫЙ анонс в канал (текст + опц. картинка) с той же
-// кнопкой «Войти» (→ мини-приложение), что и закреплённое приветствие. В отличие
-// от sendBanner — картинка одноразовая (не кешируем file_id: у каждого анонса
-// своя). Не закрепляет — обычный пост в ленту канала.
-export async function publishChannelCustom(caption: string, image?: string): Promise<{ ok: boolean; posted: boolean; error?: string }> {
-  if (!BOT_TOKEN) return { ok: false, posted: false, error: 'no_token' }
-  if (!CHANNEL_ID) return { ok: false, posted: false, error: 'no_channel' }
-  const reply_markup = channelKeyboard()
+// Telegram принимает у inline-кнопок только http(s):// или tg:// (иначе 400).
+function isValidButtonUrl(url: string): boolean {
+  return /^(https?:\/\/|tg:\/\/)\S+$/i.test(url.trim())
+}
+
+// Кастомная кнопка (текст+ссылка), если обе заданы и ссылка валидна — иначе undefined.
+function customButtonMarkup(buttonText?: string, buttonUrl?: string): unknown | undefined {
+  const text = (buttonText ?? '').trim()
+  const url = (buttonUrl ?? '').trim()
+  if (!text || !isValidButtonUrl(url)) return undefined
+  return { inline_keyboard: [[{ text, url }]] }
+}
+
+// Отправка текста/фото с опц. клавиатурой в произвольный чат/канал. Картинка —
+// одноразовая (не кешируем file_id, в отличие от sendBanner): у каждого анонса своя.
+async function sendCaptioned(
+  chatId: string | number, caption: string, image?: string, reply_markup?: unknown,
+): Promise<{ ok: boolean; error?: string }> {
+  if (!BOT_TOKEN) return { ok: false, error: 'no_token' }
   const img = /^data:(image\/[a-zA-Z.+-]+);base64,(.+)$/.exec(image ?? '')
   try {
     if (img) {
       const buf = Buffer.from(img[2], 'base64')
       const ext = img[1].split('/')[1]?.split('+')[0] || 'jpg'
       const form = new FormData()
-      form.append('chat_id', CHANNEL_ID)
+      form.append('chat_id', String(chatId))
       if (caption) { form.append('caption', caption); form.append('parse_mode', 'HTML') }
       if (reply_markup) form.append('reply_markup', JSON.stringify(reply_markup))
       form.append('photo', new Blob([new Uint8Array(buf)], { type: img[1] }), `banner.${ext}`)
       const r = await fetch(TG('sendPhoto'), { method: 'POST', body: form })
       const d = (await r.json().catch(() => ({}))) as { ok?: boolean; description?: string }
-      return d.ok ? { ok: true, posted: true } : { ok: false, posted: false, error: d.description }
+      return d.ok ? { ok: true } : { ok: false, error: d.description }
     }
     const r = await fetch(TG('sendMessage'), {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: CHANNEL_ID, text: caption, parse_mode: 'HTML', disable_web_page_preview: true, reply_markup }),
+      body: JSON.stringify({ chat_id: chatId, text: caption, parse_mode: 'HTML', disable_web_page_preview: true, reply_markup }),
     })
     const d = (await r.json().catch(() => ({}))) as { ok?: boolean; description?: string }
-    return d.ok ? { ok: true, posted: true } : { ok: false, posted: false, error: d.description }
+    return d.ok ? { ok: true } : { ok: false, error: d.description }
   } catch (e) {
-    return { ok: false, posted: false, error: (e as Error).message }
+    return { ok: false, error: (e as Error).message }
   }
+}
+
+// Опубликовать ПРОИЗВОЛЬНЫЙ анонс в канал (текст + опц. картинка). Кнопка —
+// свой текст+ссылка, если заданы и ссылка валидна; иначе дефолт «Войти» →
+// мини-приложение (та же, что у закреплённого приветствия). Не закрепляет —
+// обычный пост в ленту канала.
+export async function publishChannelCustom(
+  caption: string, image?: string, buttonText?: string, buttonUrl?: string,
+): Promise<{ ok: boolean; posted: boolean; error?: string }> {
+  if (!CHANNEL_ID) return { ok: false, posted: false, error: 'no_channel' }
+  const reply_markup = customButtonMarkup(buttonText, buttonUrl) ?? channelKeyboard()
+  const r = await sendCaptioned(CHANNEL_ID, caption, image, reply_markup)
+  return { ok: r.ok, posted: r.ok, error: r.error }
+}
+
+// Тестовое сообщение себе (проверка из админки) с опц. кастомной кнопкой —
+// чтобы можно было проверить анонс «В канал» (текст+кнопка) до публикации.
+export async function sendTestWithButton(
+  chatId: string, text: string, image?: string, buttonText?: string, buttonUrl?: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const reply_markup = customButtonMarkup(buttonText, buttonUrl)
+  return sendCaptioned(chatId, text, image, reply_markup)
 }
 
 // Запуск бота (вызывается из index.ts). Без BOT_TOKEN — no-op.

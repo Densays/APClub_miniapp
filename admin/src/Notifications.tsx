@@ -4,6 +4,7 @@ import {
   getChannelStatus, publishChannel, publishChannelCustom,
   type NotifData, type NotifConfig, type NotifEventId, type NotifOccurrence, type SendReport, type CustomNotif, type ChannelStatus,
 } from './api'
+import RichTextEditor from './RichTextEditor'
 
 const EVENT_META: Record<NotifEventId, { title: string; hint: string; vars: string }> = {
   sreda:    { title: 'Онлайн-среда',   hint: 'Ср 17:00 МСК',        vars: '{time}' },
@@ -18,6 +19,9 @@ const TEST_KEY = 'apclub-admin-test-chat'
 type Draft = { title: string; text: string; image?: string }
 const emptyDraft = (): Draft => ({ title: '', text: '', image: undefined })
 
+type ChanDraft = { text: string; image?: string; buttonText: string; buttonUrl: string }
+const emptyChanDraft = (): ChanDraft => ({ text: '', image: undefined, buttonText: 'Войти', buttonUrl: '' })
+
 export default function Notifications() {
   const [data, setData] = useState<NotifData | null>(null)
   const [cfg, setCfg] = useState<NotifConfig | null>(null)
@@ -27,6 +31,8 @@ export default function Notifications() {
   const [sending, setSending] = useState<string>('')
   const [testChat, setTestChat] = useState(() => localStorage.getItem(TEST_KEY) ?? '')
   const [draft, setDraft] = useState<Draft>(emptyDraft)
+  const [chanDraft, setChanDraft] = useState<ChanDraft>(emptyChanDraft)
+  const [customTab, setCustomTab] = useState<'bots' | 'channel'>('bots')
   const [channel, setChannel] = useState<ChannelStatus | null>(null)
   const [pubBusy, setPubBusy] = useState(false)
 
@@ -41,6 +47,11 @@ export default function Notifications() {
   }
   useEffect(() => { load() }, [])
   useEffect(() => { getChannelStatus().then(setChannel).catch(() => setChannel(null)) }, [])
+  // Подставляем дефолтную ссылку кнопки, как только узнаём её с сервера — но
+  // только если поле ещё пустое (не перетираем то, что уже начал печатать админ).
+  useEffect(() => {
+    if (channel?.link) setChanDraft((d) => (d.buttonUrl ? d : { ...d, buttonUrl: channel.link! }))
+  }, [channel?.link])
 
   async function publish() {
     setPubBusy(true); setMsg(''); setErr('')
@@ -110,22 +121,22 @@ export default function Notifications() {
     finally { setSending('') }
   }
 
-  // Публикация того же анонса в канал (пост с кнопкой «Войти» → мини-приложение).
-  async function publishToChannel(text: string, image: string | undefined, key: string) {
+  // Публикация анонса в канал (пост с кнопкой — свой текст+ссылка).
+  async function publishToChannel(text: string, image: string | undefined, buttonText: string, buttonUrl: string, key: string) {
     if (!text.trim() && !image) { setErr('Пустое уведомление — добавь текст или картинку'); return }
     setSending(key); setMsg(''); setErr('')
     try {
-      const r = await publishChannelCustom(text, image)
+      const r = await publishChannelCustom(text, image, buttonText, buttonUrl)
       setMsg(r.ok && r.posted ? 'Опубликовано в канале ✓' : channelErrText(r.error))
     } catch (e) { setErr((e as Error).message) }
     finally { setSending('') }
   }
 
-  async function doTest(text: string, image: string | undefined, key: string) {
+  async function doTest(text: string, image: string | undefined, key: string, buttonText?: string, buttonUrl?: string) {
     if (!testChat) { setErr('Укажи свой Telegram ID в поле «Тест себе» вверху'); return }
     setSending(key); setMsg(''); setErr('')
     try {
-      const r = await testNotification(testChat, text, image)
+      const r = await testNotification(testChat, text, image, buttonText, buttonUrl)
       setMsg(r.ok ? `Тест отправлен на ID ${testChat} ✓` : testErrText(r.error))
     } catch (e) { setErr((e as Error).message) }
     finally { setSending('') }
@@ -247,9 +258,9 @@ export default function Notifications() {
                   </label>
                   <span className="nf-ev-hint">{meta.hint}</span>
                 </div>
-                <textarea
-                  className="input nf-tpl" value={e.template} rows={2}
-                  onChange={(ev) => editEvent(id, { template: ev.target.value })} placeholder="Текст анонса"
+                <RichTextEditor
+                  value={e.template} rows={2}
+                  onChange={(v) => editEvent(id, { template: v })} placeholder="Текст анонса"
                 />
                 <ImageField
                   image={e.image}
@@ -279,80 +290,127 @@ export default function Notifications() {
         </div>
       </div>
 
-      {/* Произвольное уведомление: композер + сохранённый список */}
+      {/* Произвольное уведомление: две вкладки — боты (личка резидентам) и канал (пост с кнопкой) */}
       <div className="card">
-        <div className="card-t">Произвольное уведомление <span className="dim">(разово — резидентам в личку и/или постом в канал)</span></div>
+        <div className="card-t">Произвольное уведомление <span className="dim">(разовое — не по расписанию)</span></div>
 
-        <div className="nf-ev nf-compose">
-          <input
-            className="input" value={draft.title} maxLength={120}
-            onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
-            placeholder="Заголовок (для себя, не отправляется)"
-          />
-          <textarea
-            className="input nf-tpl" value={draft.text} rows={3}
-            onChange={(e) => setDraft((d) => ({ ...d, text: e.target.value }))}
-            placeholder="Текст уведомления — уйдёт всем резидентам как есть"
-          />
-          <ImageField
-            image={draft.image}
-            onPick={async (f) => { const b = await asBanner(f); if (b) setDraft((d) => ({ ...d, image: b })) }}
-            onClear={() => setDraft((d) => ({ ...d, image: undefined }))}
-          />
-          <div className="nf-ev-foot">
-            <button className="nf-link" onClick={() => setDraft(emptyDraft())}>Очистить</button>
-            <div className="nf-ev-foot-r">
-              <button className="btn sm btn-ghost" disabled={busy('test:draft')}
-                onClick={() => doTest(draft.text, draft.image, 'test:draft')}>Тест себе</button>
-              <button className="btn sm btn-ghost" onClick={addFromDraft}>В список</button>
-              <button className="btn sm btn-ghost" disabled={busy('channel:draft') || !channel?.canPost}
-                title={channel?.canPost ? 'Опубликовать в канале с кнопкой «Войти»' : 'Канал не настроен или нет прав — см. раздел выше'}
-                onClick={() => publishToChannel(draft.text, draft.image, 'channel:draft')}>
-                {busy('channel:draft') ? 'Публикуем…' : '📣 В канал'}
-              </button>
-              <button className="btn sm btn-gold" disabled={busy('send:draft')}
-                onClick={() => sendAll(draft.text, draft.image, 'send:draft')}>
-                {busy('send:draft') ? 'Отправка…' : 'Отправить всем'}
-              </button>
-            </div>
-          </div>
+        <div className="nf-tabs">
+          <button type="button" className={`nf-tab${customTab === 'bots' ? ' active' : ''}`} onClick={() => setCustomTab('bots')}>
+            💬 Отправка в боты
+          </button>
+          <button type="button" className={`nf-tab${customTab === 'channel' ? ' active' : ''}`} onClick={() => setCustomTab('channel')}>
+            📣 В канал
+          </button>
         </div>
 
-        {cfg.custom.length > 0 && (
-          <div className="nf-saved">
-            <div className="nf-saved-t">Сохранённые ({cfg.custom.length})</div>
-            {cfg.custom.map((c) => {
-              const sk = `send:${c.id}`, tk = `test:${c.id}`
-              return (
-                <div className="nf-ev" key={c.id}>
-                  <input className="input" value={c.title} placeholder="Заголовок (для себя)"
-                    onChange={(e) => editCustom(c.id, { title: e.target.value })} />
-                  <textarea className="input nf-tpl" value={c.text} rows={2}
-                    onChange={(e) => editCustom(c.id, { text: e.target.value })} placeholder="Текст" />
-                  <ImageField
-                    image={c.image}
-                    onPick={async (f) => { const b = await asBanner(f); if (b) editCustom(c.id, { image: b }) }}
-                    onClear={() => editCustom(c.id, { image: undefined })}
-                  />
-                  <div className="nf-ev-foot">
-                    <button className="nf-link danger" onClick={() => delCustom(c.id)}>Удалить</button>
-                    <div className="nf-ev-foot-r">
-                      <button className="btn sm btn-ghost" disabled={busy(tk)}
-                        onClick={() => doTest(c.text, c.image, tk)}>Тест себе</button>
-                      <button className="btn sm btn-ghost" disabled={busy(`channel:${c.id}`) || !channel?.canPost}
-                        title={channel?.canPost ? 'Опубликовать в канале с кнопкой «Войти»' : 'Канал не настроен или нет прав — см. раздел выше'}
-                        onClick={() => publishToChannel(c.text, c.image, `channel:${c.id}`)}>
-                        {busy(`channel:${c.id}`) ? 'Публикуем…' : '📣 В канал'}
-                      </button>
-                      <button className="btn sm btn-gold" disabled={busy(sk)}
-                        onClick={() => sendAll(c.text, c.image, sk)}>
-                        {busy(sk) ? 'Отправка…' : 'Отправить всем'}
-                      </button>
-                    </div>
-                  </div>
+        {customTab === 'bots' ? (
+          <>
+            <div className="nf-ev nf-compose">
+              <input
+                className="input" value={draft.title} maxLength={120}
+                onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
+                placeholder="Заголовок (для себя, не отправляется)"
+              />
+              <RichTextEditor
+                value={draft.text} rows={3}
+                onChange={(v) => setDraft((d) => ({ ...d, text: v }))}
+                placeholder="Текст уведомления — уйдёт всем резидентам как есть"
+              />
+              <ImageField
+                image={draft.image}
+                onPick={async (f) => { const b = await asBanner(f); if (b) setDraft((d) => ({ ...d, image: b })) }}
+                onClear={() => setDraft((d) => ({ ...d, image: undefined }))}
+              />
+              <div className="nf-ev-foot">
+                <button className="nf-link" onClick={() => setDraft(emptyDraft())}>Очистить</button>
+                <div className="nf-ev-foot-r">
+                  <button className="btn sm btn-ghost" disabled={busy('test:draft')}
+                    onClick={() => doTest(draft.text, draft.image, 'test:draft')}>Тест себе</button>
+                  <button className="btn sm btn-ghost" onClick={addFromDraft}>В список</button>
+                  <button className="btn sm btn-gold" disabled={busy('send:draft')}
+                    onClick={() => sendAll(draft.text, draft.image, 'send:draft')}>
+                    {busy('send:draft') ? 'Отправка…' : 'Отправить всем'}
+                  </button>
                 </div>
-              )
-            })}
+              </div>
+            </div>
+
+            {cfg.custom.length > 0 && (
+              <div className="nf-saved">
+                <div className="nf-saved-t">Сохранённые ({cfg.custom.length})</div>
+                {cfg.custom.map((c) => {
+                  const sk = `send:${c.id}`, tk = `test:${c.id}`
+                  return (
+                    <div className="nf-ev" key={c.id}>
+                      <input className="input" value={c.title} placeholder="Заголовок (для себя)"
+                        onChange={(e) => editCustom(c.id, { title: e.target.value })} />
+                      <RichTextEditor value={c.text} rows={2}
+                        onChange={(v) => editCustom(c.id, { text: v })} placeholder="Текст" />
+                      <ImageField
+                        image={c.image}
+                        onPick={async (f) => { const b = await asBanner(f); if (b) editCustom(c.id, { image: b }) }}
+                        onClear={() => editCustom(c.id, { image: undefined })}
+                      />
+                      <div className="nf-ev-foot">
+                        <button className="nf-link danger" onClick={() => delCustom(c.id)}>Удалить</button>
+                        <div className="nf-ev-foot-r">
+                          <button className="btn sm btn-ghost" disabled={busy(tk)}
+                            onClick={() => doTest(c.text, c.image, tk)}>Тест себе</button>
+                          <button className="btn sm btn-gold" disabled={busy(sk)}
+                            onClick={() => sendAll(c.text, c.image, sk)}>
+                            {busy(sk) ? 'Отправка…' : 'Отправить всем'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="nf-ev nf-compose">
+            {!channel?.configured && (
+              <div className="nf-note">Канал не настроен на сервере (см. раздел «Приветствие в канал» выше) — публикация недоступна.</div>
+            )}
+            <RichTextEditor
+              value={chanDraft.text} rows={3}
+              onChange={(v) => setChanDraft((d) => ({ ...d, text: v }))}
+              placeholder="Текст поста — уйдёт в канал как есть"
+            />
+            <ImageField
+              image={chanDraft.image}
+              onPick={async (f) => { const b = await asBanner(f); if (b) setChanDraft((d) => ({ ...d, image: b })) }}
+              onClear={() => setChanDraft((d) => ({ ...d, image: undefined }))}
+            />
+            <div className="nf-btn-row">
+              <label className="nf-btn-field">
+                <span>Текст кнопки</span>
+                <input className="input" value={chanDraft.buttonText} maxLength={60}
+                  onChange={(e) => setChanDraft((d) => ({ ...d, buttonText: e.target.value }))}
+                  placeholder="Войти" />
+              </label>
+              <label className="nf-btn-field nf-btn-field-url">
+                <span>Ссылка кнопки</span>
+                <input className="input" value={chanDraft.buttonUrl}
+                  onChange={(e) => setChanDraft((d) => ({ ...d, buttonUrl: e.target.value }))}
+                  placeholder="https://…" />
+              </label>
+            </div>
+            <div className="nf-ev-foot">
+              <button className="nf-link" onClick={() => setChanDraft((d) => ({ ...emptyChanDraft(), buttonUrl: d.buttonUrl }))}>Очистить</button>
+              <div className="nf-ev-foot-r">
+                <button className="btn sm btn-ghost" disabled={busy('test:channel')}
+                  onClick={() => doTest(chanDraft.text, chanDraft.image, 'test:channel', chanDraft.buttonText, chanDraft.buttonUrl)}>
+                  {busy('test:channel') ? 'Тест…' : 'Тест себе'}
+                </button>
+                <button className="btn sm btn-gold" disabled={busy('channel:draft') || !channel?.canPost}
+                  title={channel?.canPost ? undefined : 'Канал не настроен или нет прав — см. раздел выше'}
+                  onClick={() => publishToChannel(chanDraft.text, chanDraft.image, chanDraft.buttonText, chanDraft.buttonUrl, 'channel:draft')}>
+                  {busy('channel:draft') ? 'Публикуем…' : 'Опубликовать в канал'}
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

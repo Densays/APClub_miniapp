@@ -19,7 +19,7 @@ import {
   EVENT_DEFS,
   type EventId,
 } from './notifications.ts'
-import { startBot, channelStatus, publishChannelEntry, publishChannelCustom, handleUpdate, setWebhook, fetchUsername, sendNetworkingRequest, confirmNetworking, flushFollowups, sendEfirRegistrationAlert } from './bot.ts'
+import { startBot, channelStatus, publishChannelEntry, publishChannelCustom, sendTestWithButton, handleUpdate, setWebhook, fetchUsername, sendNetworkingRequest, confirmNetworking, flushFollowups, sendEfirRegistrationAlert } from './bot.ts'
 
 const app = express()
 const PORT = Number(process.env.PORT) || 3000
@@ -893,16 +893,18 @@ app.post('/api/admin/channel/publish', ah(async (req, res) => {
   res.json(result)
 }))
 
-// Опубликовать произвольный анонс в канал (текст + опц. картинка) с кнопкой
-// «Войти» → мини-приложение (та же ссылка/кнопка, что у закреплённого
-// приветствия). Не закрепляется — обычный пост.
+// Опубликовать произвольный анонс в канал (текст + опц. картинка) с кнопкой —
+// свои текст+ссылка (buttonText/buttonUrl), либо дефолт «Войти» → мини-приложение,
+// если не заданы. Не закрепляется — обычный пост.
 app.post('/api/admin/channel/publish-custom', ah(async (req, res) => {
   if (!(await requireAdmin(req, res))) return
-  const body = (req.body ?? {}) as { text?: string; image?: string }
+  const body = (req.body ?? {}) as { text?: string; image?: string; buttonText?: string; buttonUrl?: string }
   const text = String(body.text ?? '').trim().slice(0, 4000)
   const image = typeof body.image === 'string' ? body.image : undefined
+  const buttonText = typeof body.buttonText === 'string' ? body.buttonText.trim().slice(0, 60) : undefined
+  const buttonUrl = typeof body.buttonUrl === 'string' ? body.buttonUrl.trim().slice(0, 500) : undefined
   if (!text && !image) return res.json({ ok: false, posted: false, error: 'empty' })
-  res.json(await publishChannelCustom(text, image))
+  res.json(await publishChannelCustom(text, image, buttonText, buttonUrl))
 }))
 
 // ── Бот: webhook (serverless) + установка вебхука ─────────────────────────────
@@ -931,12 +933,15 @@ app.all('/api/cron/notify', ah(async (req, res) => {
   res.json({ ok: true, ranAt: new Date().toISOString() })
 }))
 
-// Тестовое сообщение на указанный chat_id (проверка бота).
+// Тестовое сообщение на указанный chat_id (проверка бота). Опц. buttonText/buttonUrl —
+// для проверки анонса «В канал» (текст+кнопка) до публикации.
 app.post('/api/admin/notifications/test', ah(async (req, res) => {
   if (!(await requireAdmin(req, res))) return
-  const body = (req.body ?? {}) as { chatId?: string | number; text?: string; image?: string }
+  const body = (req.body ?? {}) as { chatId?: string | number; text?: string; image?: string; buttonText?: string; buttonUrl?: string }
   if (!body.chatId) return res.status(400).json({ ok: false, error: 'no_chat_id' })
-  const result = await sendNotifTest(String(body.chatId), body.text, body.image)
+  const result = (body.buttonText || body.buttonUrl)
+    ? await sendTestWithButton(String(body.chatId), body.text?.trim() || '🔔 Тестовое уведомление из админки APClub.', body.image, body.buttonText, body.buttonUrl)
+    : await sendNotifTest(String(body.chatId), body.text, body.image)
   res.json(result)
 }))
 
