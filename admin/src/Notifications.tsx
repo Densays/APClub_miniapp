@@ -391,23 +391,17 @@ export default function Notifications() {
                   placeholder="Войти" />
               </label>
               <label className="nf-btn-field nf-btn-field-url">
-                <span>
-                  Ссылка кнопки
-                  {channel?.link && chanDraft.buttonUrl !== channel.link && (
-                    <button type="button" className="nf-link nf-btn-reset"
-                      onClick={() => setChanDraft((d) => ({ ...d, buttonUrl: channel.link! }))}>
-                      ↺ вернуть ссылку на приложение
-                    </button>
+                <span>Ссылка кнопки</span>
+                <div className="nf-url-wrap">
+                  <input className="input" value={chanDraft.buttonUrl}
+                    onChange={(e) => setChanDraft((d) => ({ ...d, buttonUrl: e.target.value }))}
+                    placeholder="https://…" />
+                  {chanDraft.buttonUrl && (
+                    <button type="button" className="chip-x nf-url-clear" title="Очистить — впишешь свою ссылку"
+                      onClick={() => setChanDraft((d) => ({ ...d, buttonUrl: '' }))}>×</button>
                   )}
-                </span>
-                <input className="input" value={chanDraft.buttonUrl}
-                  onChange={(e) => setChanDraft((d) => ({ ...d, buttonUrl: e.target.value }))}
-                  placeholder="https://…" />
+                </div>
               </label>
-            </div>
-            <div className="nf-btn-hint">
-              По умолчанию кнопка ведёт в приложение (ссылку не трогаем — так открывается всегда). Если для этого
-              анонса нужна другая ссылка — просто впиши её сюда вместо стандартной.
             </div>
             <div className="nf-ev-foot">
               <button className="nf-link" onClick={() => setChanDraft((d) => ({ ...emptyChanDraft(), buttonUrl: d.buttonUrl }))}>Очистить</button>
