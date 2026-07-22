@@ -221,7 +221,7 @@ export default function Notifications() {
             </div>
             {channel.error && <div className="nf-note">⚠️ {channelErrText(channel.error)}</div>}
             <div className="nf-ev-foot" style={{ marginTop: 12 }}>
-              <span className="nf-vars">Опубликует баннер + текст приветствия с кнопкой «Вход в клуб» и закрепит.</span>
+              <span className="nf-vars">Опубликует баннер + текст приветствия с кнопкой «Войти» и закрепит.</span>
               <button className="btn btn-gold" disabled={pubBusy || !channel.canPost} onClick={publish}>
                 {pubBusy ? 'Публикуем…' : 'Опубликовать и закрепить'}
               </button>

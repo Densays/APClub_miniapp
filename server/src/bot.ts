@@ -319,7 +319,7 @@ const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms))
 // url-кнопка (web_app в каналах нельзя). Показываем только если задана ссылка.
 function channelKeyboard(): unknown | undefined {
   if (!MINIAPP_LINK) return undefined
-  return { inline_keyboard: [[{ text: '🔓 Вход в клуб', url: MINIAPP_LINK }]] }
+  return { inline_keyboard: [[{ text: '🔓 Войти', url: MINIAPP_LINK }]] }
 }
 
 // Достаёт @username пользователя через getChat. Работает, если бот уже
