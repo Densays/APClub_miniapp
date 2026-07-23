@@ -48,6 +48,8 @@
 /* Встречи */
 .cal-day.meet-wed { background: rgba(217, 185, 116, 0.16); color: var(--text); font-weight: 700; }
 .cal-day.meet-thu { background: rgba(217, 185, 116, 0.30); color: var(--text); font-weight: 700; }
+/* Первый четверг месяца — разборы результатов месяца (отдельное выделение) */
+.cal-day.meet-thu-special { background: var(--gold); color: #1c1608; font-weight: 800; box-shadow: 0 0 0 1px rgba(217, 185, 116, 0.6); }
 
 /* День рождения — точка */
 .cal-day.has-bd::after {

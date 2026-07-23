@@ -7,7 +7,7 @@ import { BuddyButton } from '../components/Cards'
 import Tiles from '../components/Tiles'
 import Community from '../components/Community'
 import Arbix from '../components/Arbix'
-import { getNextMeeting, LINKS, openLink } from '../mock'
+import { getNextMeetingInfo, LINKS, openLink } from '../mock'
 
 export default function Home({
   onOpenOnboarding,
@@ -18,6 +18,7 @@ export default function Home({
   onOpenProfile?: () => void
   onOpenBuddy?: () => void
 }) {
+  const nextMeeting = getNextMeetingInfo()
   return (
     <div className="home">
       <Header title="APClub" />
@@ -36,7 +37,7 @@ export default function Home({
         <Calendar date={new Date()} />
 
         <div className="home-meeting-row">
-          <Countdown to={getNextMeeting()} />
+          <Countdown to={nextMeeting.time} label={nextMeeting.label} />
           <BuddyButton onClick={onOpenBuddy} />
         </div>
 

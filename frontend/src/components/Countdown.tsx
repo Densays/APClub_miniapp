@@ -10,7 +10,7 @@ function diff(target: number) {
   return { days, hours, minutes, seconds }
 }
 
-export default function Countdown({ to }: { to: string | number }) {
+export default function Countdown({ to, label }: { to: string | number; label?: string }) {
   const target = new Date(to).getTime()
   const [t, setT] = useState(() => diff(target))
 
@@ -29,6 +29,7 @@ export default function Countdown({ to }: { to: string | number }) {
   return (
     <div className="countdown">
       <div className="cd-title">ДО ВСТРЕЧИ РЕЗИДЕНТОВ</div>
+      {label && <div className="cd-event gold">{label}</div>}
       <div className="cd-row">
         {items.map((it, i) => (
           <div key={it.l} className="cd-item-wrap">
