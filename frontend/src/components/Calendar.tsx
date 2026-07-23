@@ -26,7 +26,7 @@ function bdKey(bd?: string): string | null {
   return null
 }
 
-type Ev = { icon: string; title: string; text: string; record?: boolean; join?: boolean }
+type Ev = { icon: string; title: string; text?: string; record?: boolean; join?: boolean }
 
 export default function Calendar({ date = new Date() }: { date?: Date }) {
   const year = date.getFullYear()
@@ -68,7 +68,7 @@ export default function Calendar({ date = new Date() }: { date?: Date }) {
     const evs: Ev[] = []
     const names = birthdays[`${pad(month + 1)}-${pad(selected)}`]
     if (names?.length) evs.push({ icon: '🎂', title: 'День рождения', text: `у резидента APClub ${names.join(', ')}` })
-    if (dow === 1) evs.push({ icon: '📝', title: 'Постановка целей на неделю', text: 'Поставь цели на неделю' })
+    if (dow === 1) evs.push({ icon: '📝', title: 'Постановка целей на неделю' })
     const past = selected < today // день уже прошёл (текущий месяц) → есть запись
     if (dow === 3) evs.push({ icon: '🎙️', title: 'Онлайн-среда', text: '17:00 МСК', record: past })
     if (dow === 4) {
@@ -79,7 +79,7 @@ export default function Calendar({ date = new Date() }: { date?: Date }) {
           : { icon: '🎥', title: 'Эфир в клубе', text: '19:00 МСК', record: past, join: !past },
       )
     }
-    if (dow === 6) evs.push({ icon: '✅', title: 'Подведение итогов недели', text: 'Подведи итоги недели' })
+    if (dow === 6) evs.push({ icon: '✅', title: 'Подведение итогов недели' })
     return evs
   }, [selected, birthdays, year, month])
 
@@ -129,7 +129,7 @@ export default function Calendar({ date = new Date() }: { date?: Date }) {
                 <span className="cal-ev-icon">{e.icon}</span>
                 <span className="cal-ev-text">
                   <span className="cal-ev-title">{e.title}</span>
-                  <span className="cal-ev-sub">{e.text}</span>
+                  {e.text && <span className="cal-ev-sub">{e.text}</span>}
                   {e.record && (
                     <button className="cal-ev-rec" onClick={() => openLink(LINKS.streams)}>▶ Посмотреть запись</button>
                   )}

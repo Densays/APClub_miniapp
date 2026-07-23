@@ -113,17 +113,17 @@ export const achievements: Achievement[] = [
   { id: 'role_supplier', title: 'Поставщик связок', icon: '🔗', group: 'role' },
 ]
 
-// Ближайшая встреча для таймера «До встречи» — время + название конкретного
-// события. Расписание по МСК (UTC+3): Ср 17:00 (Онлайн-среда) и Чт 19:00
-// (Zoom с резидентами; на первой неделе месяца — «Разборы итогов месяца»).
-// Возвращает абсолютный момент (timestamp), поэтому таймер считает корректно
-// в любом часовом поясе зрителя.
+// Ближайшая встреча для таймера — время + название события (совпадает с
+// заголовком в календаре). Расписание по МСК (UTC+3): Ср 17:00 (Онлайн-среда)
+// и Чт 19:00 (Эфир в клубе; на первой неделе месяца — «Разборы результатов
+// месяца»). Возвращает абсолютный момент (timestamp), поэтому таймер считает
+// корректно в любом часовом поясе зрителя.
 export type NextMeeting = { time: number; label: string }
 
 export function getNextMeetingInfo(): NextMeeting {
   const meetings = [
     { dow: 3, h: 17, label: 'Онлайн-среда' }, // среда 17:00 МСК
-    { dow: 4, h: 19, label: 'Zoom с резидентами' }, // четверг 19:00 МСК
+    { dow: 4, h: 19, label: 'Эфир в клубе' }, // четверг 19:00 МСК
   ]
   const now = Date.now()
   const msk = new Date(now + 3 * 3600 * 1000) // «стенные» часы МСК через UTC-поля
@@ -136,8 +136,8 @@ export function getNextMeetingInfo(): NextMeeting {
       const ts = Date.UTC(y, mo, d + add, mt.h - 3, 0, 0) // МСК h:00 → UTC (h−3):00
       const mskDate = new Date(ts + 3 * 3600 * 1000)
       if (mskDate.getUTCDay() === mt.dow && ts > now) {
-        // Первый четверг месяца — «Разборы итогов месяца» вместо обычного Zoom-эфира.
-        const label = mt.dow === 4 && mskDate.getUTCDate() <= 7 ? 'Разборы итогов месяца' : mt.label
+        // Первый четверг месяца — «Разборы результатов месяца» вместо обычного эфира.
+        const label = mt.dow === 4 && mskDate.getUTCDate() <= 7 ? 'Разборы результатов месяца' : mt.label
         if (!best || ts < best.ts) best = { ts, label }
         break
       }

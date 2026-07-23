@@ -28,7 +28,7 @@ export default function Countdown({ to, label }: { to: string | number; label?: 
 
   return (
     <div className="countdown">
-      <div className="cd-title">ДО ВСТРЕЧИ РЕЗИДЕНТОВ</div>
+      <div className="cd-title">{label ? 'СЛЕДУЮЩЕЕ СОБЫТИЕ' : 'ДО ВСТРЕЧИ РЕЗИДЕНТОВ'}</div>
       {label && <div className="cd-event gold">{label}</div>}
       <div className="cd-row">
         {items.map((it, i) => (
