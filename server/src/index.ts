@@ -1,4 +1,5 @@
 import 'dotenv/config'
+import crypto from 'node:crypto'
 import express from 'express'
 import cors from 'cors'
 import { validateInitData } from './initData.ts'
@@ -156,9 +157,48 @@ function getInitData(req: express.Request): string {
   return scheme === 'tma' && value ? value : ''
 }
 
+// ── Превью мини-аппа в браузерной админке ────────────────────────────────────
+// Админ выбирает резидента → получает короткоживущий подписанный токен →
+// открывает мини-апп в iframe с этим токеном вместо настоящей Telegram initData.
+// Отдельная от validateInitData схема (префикс "preview:"), не ослабляет
+// проверку реальных Telegram-запросов. Секрет — ADMIN_PASSWORD (уже секрет,
+// известен только админам); HMAC не раскрывает его по токену.
+const PREVIEW_TOKEN_TTL_MS = 20 * 60 * 1000
+const PREVIEW_SECRET = ADMIN_PASSWORD || BOT_TOKEN || 'apclub-preview-fallback'
+const isPreviewableId = (id: string) => /^\d{5,}$/.test(id) // только реальные Telegram-id
+
+function signPreviewPayload(payloadB64: string): string {
+  return crypto.createHmac('sha256', PREVIEW_SECRET).update(payloadB64).digest('base64url')
+}
+
+function createPreviewToken(p: Pick<Profile, 'userId' | 'firstName' | 'lastName' | 'username'>): string {
+  const payload = {
+    id: p.userId, firstName: p.firstName ?? '', lastName: p.lastName ?? '', username: p.username ?? '',
+    exp: Date.now() + PREVIEW_TOKEN_TTL_MS,
+  }
+  const payloadB64 = Buffer.from(JSON.stringify(payload)).toString('base64url')
+  return `${payloadB64}.${signPreviewPayload(payloadB64)}`
+}
+
+function verifyPreviewToken(raw: string): TelegramUser | null {
+  const [payloadB64, sig] = raw.split('.')
+  if (!payloadB64 || !sig) return null
+  const expected = signPreviewPayload(payloadB64)
+  if (sig.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null
+  try {
+    const data = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8')) as
+      { id?: string; firstName?: string; lastName?: string; username?: string; exp?: number }
+    if (!data.id || typeof data.exp !== 'number' || data.exp < Date.now()) return null
+    return { id: Number(data.id), first_name: data.firstName, last_name: data.lastName, username: data.username }
+  } catch {
+    return null
+  }
+}
+
 // Возвращает авторизованного пользователя или null (с учётом dev-режима).
 function resolveUser(req: express.Request): TelegramUser | null {
   const initData = getInitData(req)
+  if (initData.startsWith('preview:')) return verifyPreviewToken(initData.slice(8))
   if (ALLOW_DEV_AUTH && (initData === 'dev' || initData === '')) {
     return DEV_USER
   }
@@ -332,8 +372,10 @@ app.get('/api/profile/me', ah(async (req, res) => {
   const user = resolveUser(req)
   if (!user) return res.status(401).json({ ok: false, error: 'Unauthorized' })
   let stored = await store.get(String(user.id))
-  // Активация: фиксируем момент первого входа в приложение.
-  if (!stored?.activatedAt) {
+  // Активация: фиксируем момент первого входа в приложение. Превью из админки
+  // (глазами резидента) не должно молча активировать того, кто ещё не входил сам.
+  const isPreview = getInitData(req).startsWith('preview:')
+  if (!stored?.activatedAt && !isPreview) {
     stored = await store.upsert(String(user.id), { activatedAt: Date.now() })
   }
   const profile = withDefaults(user, stored)
@@ -668,6 +710,17 @@ app.post('/api/admin/login', (req, res) => {
 // Проверка валидности сохранённого токена (для авто-логина админки).
 app.get('/api/admin/check', ah(async (req, res) => {
   res.json({ ok: await isAdminRequest(req) })
+}))
+
+// Токен для превью мини-аппа в админке «глазами» выбранного резидента.
+// Короткоживущий (см. PREVIEW_TOKEN_TTL_MS), только для реальных Telegram-id.
+app.post('/api/admin/preview-token', ah(async (req, res) => {
+  if (!(await requireAdmin(req, res))) return
+  const userId = String((req.body as { userId?: string })?.userId ?? '')
+  if (!isPreviewableId(userId)) return res.status(400).json({ ok: false, error: 'bad_user' })
+  const p = await store.get(userId)
+  if (!p) return res.status(404).json({ ok: false, error: 'not_found' })
+  res.json({ ok: true, token: createPreviewToken(p), expiresAt: Date.now() + PREVIEW_TOKEN_TTL_MS })
 }))
 
 // Бэкофилл @username через бота для тех участников, у кого его ещё нет (в базе

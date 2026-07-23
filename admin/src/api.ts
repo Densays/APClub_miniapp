@@ -118,6 +118,16 @@ export async function saveLevels(levels: string[]): Promise<string[]> {
   return ((await r.json()).levels as string[]) ?? []
 }
 
+// Токен для превью мини-аппа «глазами» выбранного резидента (панель превью).
+export async function getPreviewToken(userId: string): Promise<string> {
+  const r = await fetch(`${API_BASE}/api/admin/preview-token`, {
+    method: 'POST', headers: headers(), body: JSON.stringify({ userId }),
+  })
+  const data = await r.json().catch(() => ({}))
+  if (!r.ok || !data.ok) throw new Error(data.error || `preview token failed: ${r.status}`)
+  return data.token as string
+}
+
 export async function getProfiles(): Promise<Profile[]> {
   const r = await fetch(`${API_BASE}/api/admin/profiles`, { headers: headers() })
   if (r.status === 401) throw new Error('unauth')

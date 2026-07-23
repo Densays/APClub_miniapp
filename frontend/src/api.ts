@@ -42,9 +42,21 @@ export type ProfileData = {
   unlock?: Unlock
 }
 
+// Превью из админки: ?preview_token=… в URL → шлём как отдельную схему auth
+// (сервер отличает по префиксу "preview:", это не настоящая Telegram initData).
+function getPreviewToken(): string | null {
+  try {
+    return new URLSearchParams(window.location.search).get('preview_token')
+  } catch {
+    return null
+  }
+}
+
 // Сырая строка initData для подписи на сервере. Вне Telegram — 'dev'
 // (сервер принимает при ALLOW_DEV_AUTH=1).
 function getInitDataRaw(): string {
+  const preview = getPreviewToken()
+  if (preview) return `preview:${preview}`
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const raw = (window as any)?.Telegram?.WebApp?.initData
@@ -213,6 +225,7 @@ export async function registerEfir(name: string): Promise<{ dateKey: string }> {
 // Фиксируем запуск приложения (для дашборда админки). Вызывается один раз при
 // старте. Ошибки глушим — трекинг не должен ломать вход.
 export async function recordLaunch(): Promise<void> {
+  if (getPreviewToken()) return // превью из админки не должно засорять статистику запусков
   try {
     await fetch(`${API_BASE}/api/launch`, { method: 'POST', headers: authHeaders() })
   } catch {

@@ -11,6 +11,7 @@ import Allowlist from './Allowlist'
 import Pairs from './Pairs'
 import NetworkingAdmin from './NetworkingAdmin'
 import EfirRegistrations from './EfirRegistrations'
+import PreviewPanel from './PreviewPanel'
 
 type Theme = 'dark' | 'light'
 
@@ -112,6 +113,7 @@ function Shell({ catalog, theme, onToggleTheme, onCatalogChange, onLevelsChange,
     <div className="layout">
       <Sidebar current={section} onSelect={selectSection} onLogout={onLogout} theme={theme} onToggleTheme={onToggleTheme} />
       <main className="content">{render()}</main>
+      <PreviewPanel />
     </div>
   )
 }
