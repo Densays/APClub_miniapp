@@ -72,7 +72,7 @@
 
 /* ── Панель событий справа ── */
 .cal-events {
-  flex: 0 0 148px;
+  flex: 0 0 172px;
   border-left: 1px solid rgba(255, 255, 255, 0.07);
   padding-left: 12px;
   display: flex;
@@ -99,8 +99,8 @@
 .cal-ev-empty { font-size: 0.78rem; color: var(--text-muted); }
 
 .cal-ev-rec {
-  margin-top: 6px; align-self: flex-start;
+  margin-top: 6px; align-self: stretch; width: 100%; text-align: center;
   background: var(--gold); color: #1c1608; border: none;
-  border-radius: 8px; padding: 5px 11px; font-size: 0.72rem; font-weight: 700;
-  cursor: pointer; font-family: inherit;
+  border-radius: 8px; padding: 7px 8px; font-size: 0.72rem; font-weight: 700;
+  cursor: pointer; font-family: inherit; white-space: nowrap;
 }

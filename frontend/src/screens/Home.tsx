@@ -35,14 +35,14 @@ export default function Home({
 
         <Calendar date={new Date()} />
 
-        <button className="home-review-btn" onClick={() => openLink(LINKS.razbor)}>
-          🎥 Попасть на разбор
-        </button>
-
         <div className="home-meeting-row">
           <Countdown to={getNextMeeting()} />
           <BuddyButton onClick={onOpenBuddy} />
         </div>
+
+        <button className="home-review-btn" onClick={() => openLink(LINKS.razbor)}>
+          🎥 Подготовиться к разбору
+        </button>
 
         <Tiles />
 
