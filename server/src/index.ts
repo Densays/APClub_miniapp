@@ -16,11 +16,12 @@ import {
   sendEvent as sendNotifEvent,
   sendCustom as sendNotifCustom,
   sendTest as sendNotifTest,
+  sendChannelPost as sendNotifChannelPost,
   runDueNotifications,
   EVENT_DEFS,
   type EventId,
 } from './notifications.ts'
-import { startBot, channelStatus, publishChannelEntry, publishChannelCustom, sendTestWithButton, handleUpdate, setWebhook, fetchUsername, sendNetworkingRequest, confirmNetworking, flushFollowups, sendEfirRegistrationAlert } from './bot.ts'
+import { startBot, channelStatus, publishChannelEntry, publishChannelCustom, sendTestWithButton, handleUpdate, setWebhook, fetchUsername, sendNetworkingRequest, confirmNetworking, flushFollowups, sendEfirRegistrationAlert, sendClubApplication, sendFastMoneyApplication } from './bot.ts'
 
 const app = express()
 const PORT = Number(process.env.PORT) || 3000
@@ -71,6 +72,77 @@ const CORS_ALLOW = [
   ...(process.env.ALLOWED_ORIGINS ?? '').split(',').map((s) => s.trim()),
   'http://localhost:5173', 'http://localhost:5174', 'http://localhost:4173',
 ].filter((x): x is string => Boolean(x))
+// ── Заявка на личную встречу в клуб (публичная форма с лендинга) ──────────────
+// Регистрируется ДО глобального CORS: это лид-форма, доступная посетителю любого
+// сайта (лендинг деплоится на отдельный домен), поэтому Origin любой. Свой
+// cors({origin:true}) и парсер тела, чтобы не зависеть от allowlist ниже.
+// Защита: honeypot-поле + лимиты длины + rate-limit по IP.
+const applyCors = cors({ origin: true })
+const applyHits = new Map<string, number[]>()
+app.options('/api/club-application', applyCors)
+app.post('/api/club-application', applyCors, express.json({ limit: '32kb' }), async (req, res) => {
+  const b = (req.body ?? {}) as Record<string, unknown>
+  // honeypot: скрытое поле «website» должно оставаться пустым (боты его заполняют)
+  if (typeof b.website === 'string' && b.website.trim()) return res.json({ ok: true })
+  // rate-limit: не более 5 заявок с одного IP за 10 минут
+  const ip = ((req.headers['x-forwarded-for'] as string) || req.ip || '').split(',')[0].trim()
+  const now = Date.now()
+  const hits = (applyHits.get(ip) ?? []).filter((t) => now - t < 10 * 60_000)
+  if (hits.length >= 5) return res.status(429).json({ ok: false, error: 'Слишком много заявок. Попробуйте позже.' })
+  const str = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
+  const application = {
+    name: str(b.name, 120),
+    age: str(b.age, 20),
+    country: str(b.country, 120),
+    experience: str(b.experience, 2000),
+    results: str(b.results, 2000),
+    motivation: str(b.motivation, 2000),
+    strengths: str(b.strengths, 2000),
+    role: str(b.role, 500),
+    report: str(b.report, 500),
+  }
+  const required: (keyof typeof application)[] = ['name', 'age', 'country', 'experience', 'results', 'motivation', 'strengths', 'role', 'report']
+  if (required.some((k) => !application[k])) return res.status(400).json({ ok: false, error: 'Заполните все поля.' })
+  hits.push(now)
+  applyHits.set(ip, hits)
+  const sent = await sendClubApplication(application)
+  if (!sent) return res.status(500).json({ ok: false, error: 'Не настроен получатель заявок.' })
+  res.json({ ok: true })
+})
+
+// ── Анкета Fast Money (публичная форма с лендинга) ────────────────────────────
+app.options('/api/fastmoney-application', applyCors)
+app.post('/api/fastmoney-application', applyCors, express.json({ limit: '32kb' }), async (req, res) => {
+  const b = (req.body ?? {}) as Record<string, unknown>
+  if (typeof b.website === 'string' && b.website.trim()) return res.json({ ok: true })
+  const ip = ((req.headers['x-forwarded-for'] as string) || req.ip || '').split(',')[0].trim()
+  const now = Date.now()
+  const hits = (applyHits.get(ip) ?? []).filter((t) => now - t < 10 * 60_000)
+  if (hits.length >= 5) return res.status(429).json({ ok: false, error: 'Слишком много заявок. Попробуйте позже.' })
+  const str = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
+  const application = {
+    name: str(b.name, 120),
+    age: str(b.age, 20),
+    place: str(b.place, 160),
+    occupation: str(b.occupation, 200),
+    readiness: str(b.readiness, 300),
+    goals6m: str(b.goals6m, 2000),
+    finGoal: str(b.finGoal, 2000),
+    deposit: str(b.deposit, 120),
+    expectations: str(b.expectations, 2000),
+    telegram: str(b.telegram, 120),
+    wantBuddy: Boolean(b.wantBuddy),
+    buddy: str(b.buddy, 60),
+  }
+  const required: (keyof typeof application)[] = ['name', 'age', 'place', 'occupation', 'readiness', 'goals6m', 'finGoal', 'deposit', 'expectations', 'telegram']
+  if (required.some((k) => !application[k])) return res.status(400).json({ ok: false, error: 'Заполните все поля.' })
+  hits.push(now)
+  applyHits.set(ip, hits)
+  const sent = await sendFastMoneyApplication(application)
+  if (!sent) return res.status(500).json({ ok: false, error: 'Не настроен получатель заявок.' })
+  res.json({ ok: true })
+})
+
 app.use(
   cors({
     origin(origin, cb) {
@@ -931,6 +1003,16 @@ app.post('/api/admin/notifications/send-custom', ah(async (req, res) => {
   const offset = typeof body.offset === 'number' ? body.offset : 0
   const report = await sendNotifCustom(String(body.text ?? ''), body.image, offset)
   res.json({ ok: report.ok, report })
+}))
+
+// Опубликовать авто-пост из списка «В канал» сейчас (планировщик сработает сам по
+// расписанию; эта ручка — для ручного/повторного триггера конкретного поста из админки).
+app.post('/api/admin/notifications/channel-send', ah(async (req, res) => {
+  if (!(await requireAdmin(req, res))) return
+  const body = (req.body ?? {}) as { id?: string; force?: boolean }
+  if (!body.id) return res.status(400).json({ ok: false, error: 'bad_id' })
+  const result = await sendNotifChannelPost(body.id, { force: Boolean(body.force) })
+  res.json(result)
 }))
 
 // Статус бота в канале (админ, права постить/закреплять).

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import {
   getNotifications, saveNotifications, sendNotification, sendCustomNotification, testNotification, fileToBanner,
-  getChannelStatus, publishChannel, publishChannelCustom,
-  type NotifData, type NotifConfig, type NotifEventId, type NotifOccurrence, type SendReport, type CustomNotif, type ChannelStatus,
+  getChannelStatus, publishChannel, publishChannelCustom, sendChannelAutoPost,
+  type NotifData, type NotifConfig, type NotifEventId, type NotifOccurrence, type SendReport, type CustomNotif,
+  type ChannelStatus, type ChannelPost,
 } from './api'
 import RichTextEditor from './RichTextEditor'
 
@@ -15,12 +16,25 @@ const EVENT_META: Record<NotifEventId, { title: string; hint: string; vars: stri
 }
 const ORDER: NotifEventId[] = ['efir', 'sreda', 'birthday', 'weekplan', 'weeksum']
 const TEST_KEY = 'apclub-admin-test-chat'
+// 0=Вс..6=Сб — как Date.getUTCDay() / EventDef.dow на сервере.
+const DOW_NAMES = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота']
 
 type Draft = { title: string; text: string; image?: string }
 const emptyDraft = (): Draft => ({ title: '', text: '', image: undefined })
 
 type ChanDraft = { text: string; image?: string; buttonText: string; buttonUrl: string }
 const emptyChanDraft = (): ChanDraft => ({ text: '', image: undefined, buttonText: 'Войти', buttonUrl: '' })
+
+type ChanAutoDraft = { title: string; dow: number; sendHour: number; template: string; image?: string; buttonText: string; buttonUrl: string }
+const emptyChanAutoDraft = (): ChanAutoDraft => ({ title: '', dow: 3, sendHour: 10, template: '', image: undefined, buttonText: 'Войти', buttonUrl: '' })
+
+// Сегодняшняя дата-ключ по МСК (зеркалит mskDateKey на сервере) — для бейджа
+// «опубликовано сегодня» у авто-постов в канал.
+function mskTodayKey(): string {
+  const d = new Date(Date.now() + 3 * 3600 * 1000)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`
+}
 
 export default function Notifications() {
   const [data, setData] = useState<NotifData | null>(null)
@@ -32,7 +46,8 @@ export default function Notifications() {
   const [testChat, setTestChat] = useState(() => localStorage.getItem(TEST_KEY) ?? '')
   const [draft, setDraft] = useState<Draft>(emptyDraft)
   const [chanDraft, setChanDraft] = useState<ChanDraft>(emptyChanDraft)
-  const [customTab, setCustomTab] = useState<'bots' | 'channel'>('bots')
+  const [chanAutoDraft, setChanAutoDraft] = useState<ChanAutoDraft>(emptyChanAutoDraft)
+  const [mainTab, setMainTab] = useState<'bots' | 'channel'>('bots')
   const [channel, setChannel] = useState<ChannelStatus | null>(null)
   const [pubBusy, setPubBusy] = useState(false)
 
@@ -50,7 +65,10 @@ export default function Notifications() {
   // Подставляем дефолтную ссылку кнопки, как только узнаём её с сервера — но
   // только если поле ещё пустое (не перетираем то, что уже начал печатать админ).
   useEffect(() => {
-    if (channel?.link) setChanDraft((d) => (d.buttonUrl ? d : { ...d, buttonUrl: channel.link! }))
+    if (channel?.link) {
+      setChanDraft((d) => (d.buttonUrl ? d : { ...d, buttonUrl: channel.link! }))
+      setChanAutoDraft((d) => (d.buttonUrl ? d : { ...d, buttonUrl: channel.link! }))
+    }
   }, [channel?.link])
 
   async function publish() {
@@ -87,7 +105,7 @@ export default function Notifications() {
   async function save() {
     if (!cfg) return
     try {
-      const saved = await saveNotifications({ enabled: cfg.enabled, events: cfg.events, custom: cfg.custom })
+      const saved = await saveNotifications({ enabled: cfg.enabled, events: cfg.events, custom: cfg.custom, channelAuto: cfg.channelAuto })
       setCfg(saved); setDirty(false); setMsg('Настройки сохранены ✓')
       load()
     } catch { setErr('Ошибка сохранения') }
@@ -100,6 +118,11 @@ export default function Notifications() {
       .replace(/\{name\}/g, 'Иван Иванов')
       .replace(/\{time\}/g, timeById[id] ?? '19:00')
       .replace(/\{date\}/g, `${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}`)
+  }
+  // То же, но для авто-постов в канал (без {name}/{time} — только {date}).
+  function renderChanSample(tpl: string): string {
+    const now = new Date()
+    return tpl.replace(/\{date\}/g, `${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}`)
   }
 
   // Прогресс длинной (резюмируемой) рассылки: «Отправка… X/N».
@@ -157,17 +180,50 @@ export default function Notifications() {
     setDraft(emptyDraft()); setDirty(true); setMsg('Добавлено в список — не забудь «Сохранить»')
   }
 
+  // Автоматические повторяющиеся посты в канал (сохранённый список — cfg.channelAuto).
+  function editChannelAuto(id: string, patch: Partial<ChannelPost>) {
+    setCfg((c) => (c ? { ...c, channelAuto: c.channelAuto.map((x) => (x.id === id ? { ...x, ...patch } : x)) } : c))
+    setDirty(true); setMsg('')
+  }
+  function delChannelAuto(id: string) {
+    setCfg((c) => (c ? { ...c, channelAuto: c.channelAuto.filter((x) => x.id !== id) } : c)); setDirty(true)
+  }
+  function addChannelAutoFromDraft() {
+    if (!chanAutoDraft.template.trim() && !chanAutoDraft.image) { setErr('Заполни текст или добавь картинку'); return }
+    const item: ChannelPost = {
+      id: `ch${Date.now()}`, title: chanAutoDraft.title.trim(), dow: chanAutoDraft.dow, sendHour: chanAutoDraft.sendHour,
+      enabled: true, template: chanAutoDraft.template.trim(), image: chanAutoDraft.image,
+      buttonText: chanAutoDraft.buttonText.trim() || 'Войти', buttonUrl: chanAutoDraft.buttonUrl.trim(),
+    }
+    setCfg((c) => (c ? { ...c, channelAuto: [item, ...c.channelAuto] } : c))
+    setChanAutoDraft((d) => ({ ...emptyChanAutoDraft(), buttonUrl: d.buttonUrl }))
+    setDirty(true); setMsg('Добавлено в список — не забудь «Сохранить»')
+  }
+  // Опубликовать (или повторно) авто-пост из списка прямо сейчас.
+  async function sendChannelAutoNow(id: string, force: boolean) {
+    const key = `chanauto:${id}`
+    setSending(key); setMsg(''); setErr('')
+    try {
+      const r = await sendChannelAutoPost(id, force)
+      setMsg(r.ok && r.posted ? 'Опубликовано в канале ✓' : r.alreadySent ? 'Уже публиковали сегодня (нажми ещё раз для повтора)' : channelErrText(r.error))
+      load()
+    } catch (e) { setErr((e as Error).message) }
+    finally { setSending('') }
+  }
+
   if (err && !data) return <div className="page"><div className="err">{err}</div></div>
   if (!data || !cfg) return <div className="page"><div className="td-empty">Загрузка…</div></div>
 
   const busy = (k: string) => sending === k
+  const todayKey = mskTodayKey()
+  const chanAutoSentToday = (id: string) => Boolean(cfg.sent[`chan:${id}:${todayKey}`])
 
   return (
     <div className="page">
       <div className="page-head">
         <div>
-          <h1 className="page-title">Уведомления</h1>
-          <div className="page-sub">Анонсы событий клуба в бота — личным сообщением каждому резиденту</div>
+          <h1 className="page-title">Рассылка</h1>
+          <div className="page-sub">Анонсы клуба — в личку резидентам через бота и постами в канал</div>
         </div>
         <div className="row">
           <button className="btn btn-ghost" onClick={load}>Обновить</button>
@@ -178,7 +234,7 @@ export default function Notifications() {
       {msg && <div className="msg">{msg}</div>}
       {err && <div className="err">{err}</div>}
 
-      {/* Статус + тест в свой Telegram */}
+      {/* Статус + тест в свой Telegram — общее для обеих вкладок */}
       <div className="card nf-status">
         <div className="nf-status-row">
           <label className="nf-switch">
@@ -211,100 +267,102 @@ export default function Notifications() {
         )}
       </div>
 
-      {/* Приветствие в канал (закреплённый пост с кнопкой входа) */}
-      <div className="card">
-        <div className="card-t">Приветствие в канал <span className="dim">(закреплённый пост с кнопкой входа)</span></div>
-        {!channel ? (
-          <div className="td-empty">Загрузка статуса…</div>
-        ) : !channel.configured ? (
-          <div className="nf-note">
-            Канал не настроен. Задай на сервере <code>CHANNEL_ID</code> (@username или -100…) и <code>MINIAPP_LINK</code>
-            (прямая ссылка Mini App из BotFather), затем добавь бота <b>админом</b> канала с правами «Публикация» и «Закрепление».
-          </div>
-        ) : (
-          <>
-            <div className="nf-chan-grid">
-              <div className="nf-chan-row"><span>Канал</span><b>{channel.title || channel.channelId}</b></div>
-              <div className="nf-chan-row"><span>Бот — админ</span><span className={channel.isAdmin ? 'nf-ok' : 'nf-bad'}>{channel.isAdmin ? 'да' : 'нет'}</span></div>
-              <div className="nf-chan-row"><span>Может публиковать</span><span className={channel.canPost ? 'nf-ok' : 'nf-bad'}>{channel.canPost ? 'да' : 'нет'}</span></div>
-              <div className="nf-chan-row"><span>Может закреплять</span><span className={channel.canPin ? 'nf-ok' : 'nf-bad'}>{channel.canPin ? 'да' : 'нет'}</span></div>
-              <div className="nf-chan-row"><span>Ссылка входа</span><span className={channel.hasLink ? 'nf-ok' : 'nf-bad'}>{channel.hasLink ? 'задана' : 'нет'}</span></div>
-            </div>
-            {channel.error && <div className="nf-note">⚠️ {channelErrText(channel.error)}</div>}
-            <div className="nf-ev-foot" style={{ marginTop: 12 }}>
-              <span className="nf-vars">Опубликует баннер + текст приветствия с кнопкой «Войти» и закрепит.</span>
-              <button className="btn btn-gold" disabled={pubBusy || !channel.canPost} onClick={publish}>
-                {pubBusy ? 'Публикуем…' : 'Опубликовать и закрепить'}
-              </button>
-            </div>
-          </>
-        )}
+      {/* Верхние вкладки: куда шлём */}
+      <div className="nf-tabs">
+        <button type="button" className={`nf-tab${mainTab === 'bots' ? ' active' : ''}`} onClick={() => setMainTab('bots')}>
+          💬 В бота
+        </button>
+        <button type="button" className={`nf-tab${mainTab === 'channel' ? ' active' : ''}`} onClick={() => setMainTab('channel')}>
+          📣 В канал
+        </button>
       </div>
 
-      {/* Настройки по типам событий */}
-      <div className="card">
-        <div className="card-t">Типы событий</div>
-        <div className="nf-events">
-          {ORDER.map((id) => {
-            const e = cfg.events[id]
-            const meta = EVENT_META[id]
-            const tkey = `test:${id}`
-            return (
-              <div className={`nf-ev ${e.enabled ? '' : 'off'}`} key={id}>
-                <div className="nf-ev-head">
-                  <label className="nf-switch sm">
-                    <input type="checkbox" checked={e.enabled} onChange={(ev) => editEvent(id, { enabled: ev.target.checked })} />
-                    <span className="nf-ev-title">{meta.title}</span>
-                  </label>
-                  <span className="nf-ev-hint">{meta.hint}</span>
-                </div>
-                <RichTextEditor
-                  value={e.template} rows={2}
-                  onChange={(v) => editEvent(id, { template: v })} placeholder="Текст анонса"
-                />
-                <ImageField
-                  image={e.image}
-                  onPick={async (f) => { const b = await asBanner(f); if (b) editEvent(id, { image: b }) }}
-                  onClear={() => editEvent(id, { image: '' })}
-                />
-                <div className="nf-ev-foot">
-                  <span className="nf-vars">Подстановки: <code>{meta.vars}</code></span>
-                  <div className="nf-ev-foot-r">
-                    <button className="btn sm btn-ghost" disabled={busy(tkey)}
-                      onClick={() => doTest(renderSample(id, e.template), e.image, tkey)}>
-                      {busy(tkey) ? 'Тест…' : 'Тест себе'}
-                    </button>
-                    <label className="nf-hour">
-                      Авто в
-                      <select className="input" value={e.sendHour} onChange={(ev) => editEvent(id, { sendHour: Number(ev.target.value) })}>
-                        {Array.from({ length: 24 }, (_, h) => (
-                          <option key={h} value={h}>{String(h).padStart(2, '0')}:00 МСК</option>
-                        ))}
-                      </select>
-                    </label>
+      {mainTab === 'bots' ? (
+        <>
+          {/* Автоматическая рассылка в бота: типы событий */}
+          <div className="card">
+            <div className="card-t">Автоматическая рассылка <span className="dim">(по расписанию, редактируется)</span></div>
+            <div className="nf-events">
+              {ORDER.map((id) => {
+                const e = cfg.events[id]
+                const meta = EVENT_META[id]
+                const tkey = `test:${id}`
+                return (
+                  <div className={`nf-ev ${e.enabled ? '' : 'off'}`} key={id}>
+                    <div className="nf-ev-head">
+                      <label className="nf-switch sm">
+                        <input type="checkbox" checked={e.enabled} onChange={(ev) => editEvent(id, { enabled: ev.target.checked })} />
+                        <span className="nf-ev-title">{meta.title}</span>
+                      </label>
+                      <span className="nf-ev-hint">{meta.hint}</span>
+                    </div>
+                    <RichTextEditor
+                      value={e.template} rows={2}
+                      onChange={(v) => editEvent(id, { template: v })} placeholder="Текст анонса"
+                    />
+                    <ImageField
+                      image={e.image}
+                      onPick={async (f) => { const b = await asBanner(f); if (b) editEvent(id, { image: b }) }}
+                      onClear={() => editEvent(id, { image: '' })}
+                    />
+                    <div className="nf-ev-foot">
+                      <span className="nf-vars">Подстановки: <code>{meta.vars}</code></span>
+                      <div className="nf-ev-foot-r">
+                        <button className="btn sm btn-ghost" disabled={busy(tkey)}
+                          onClick={() => doTest(renderSample(id, e.template), e.image, tkey)}>
+                          {busy(tkey) ? 'Тест…' : 'Тест себе'}
+                        </button>
+                        <label className="nf-hour">
+                          Авто в
+                          <select className="input" value={e.sendHour} onChange={(ev) => editEvent(id, { sendHour: Number(ev.target.value) })}>
+                            {Array.from({ length: 24 }, (_, h) => (
+                              <option key={h} value={h}>{String(h).padStart(2, '0')}:00 МСК</option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Ближайшие события — ручная отправка (гибрид) */}
+          <div className="card">
+            <div className="card-t">Ближайшие 7 дней <span className="dim">(авто по расписанию · можно отправить вручную)</span></div>
+            {data.upcoming.length === 0 ? (
+              <div className="td-empty">На неделю событий нет.</div>
+            ) : (
+              <div className="nf-up">
+                {data.upcoming.map((o) => {
+                  const key = `${o.eventId}:${o.dateKey}`
+                  return (
+                    <div className={`nf-up-row ${o.enabled ? '' : 'off'}`} key={key}>
+                      <div className="nf-up-when">
+                        <span className="nf-up-date">{o.dateLabel}</span>
+                        <span className="nf-up-ev">{o.title}</span>
+                        <span className="nf-up-hour">→ {String(o.sendHour).padStart(2, '0')}:00</span>
+                      </div>
+                      <div className="nf-up-msg">{o.hasImage && <span className="nf-cam" title="С картинкой">📷</span>}{o.message}</div>
+                      <div className="nf-up-actions">
+                        {o.sent
+                          ? <span className="nf-sent">Отправлено ✓</span>
+                          : <span className="dim sm">{o.enabled ? 'В очереди' : 'Выключено'}</span>}
+                        <button className="btn sm btn-ghost" disabled={busy(key)} onClick={() => send(o, o.sent)}>
+                          {busy(key) ? 'Отправка…' : o.sent ? 'Отправить ещё раз' : 'Отправить сейчас'}
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
-            )
-          })}
-        </div>
-      </div>
+            )}
+          </div>
 
-      {/* Произвольное уведомление: две вкладки — боты (личка резидентам) и канал (пост с кнопкой) */}
-      <div className="card">
-        <div className="card-t">Произвольное уведомление <span className="dim">(разовое — не по расписанию)</span></div>
-
-        <div className="nf-tabs">
-          <button type="button" className={`nf-tab${customTab === 'bots' ? ' active' : ''}`} onClick={() => setCustomTab('bots')}>
-            💬 Отправка в боты
-          </button>
-          <button type="button" className={`nf-tab${customTab === 'channel' ? ' active' : ''}`} onClick={() => setCustomTab('channel')}>
-            📣 В канал
-          </button>
-        </div>
-
-        {customTab === 'bots' ? (
-          <>
+          {/* Ручная рассылка в бота */}
+          <div className="card">
+            <div className="card-t">Ручная рассылка <span className="dim">(разовая — не по расписанию)</span></div>
             <div className="nf-ev nf-compose">
               <input
                 className="input" value={draft.title} maxLength={120}
@@ -367,91 +425,228 @@ export default function Notifications() {
                 })}
               </div>
             )}
-          </>
-        ) : (
-          <div className="nf-ev nf-compose">
+          </div>
+        </>
+      ) : (
+        <>
+          {/* Приветствие в канал (закреплённый пост с кнопкой входа) — отдельно от рассылок ниже */}
+          <div className="card">
+            <div className="card-t">Приветствие в канал <span className="dim">(закреплённый пост с кнопкой входа)</span></div>
+            {!channel ? (
+              <div className="td-empty">Загрузка статуса…</div>
+            ) : !channel.configured ? (
+              <div className="nf-note">
+                Канал не настроен. Задай на сервере <code>CHANNEL_ID</code> (@username или -100…) и <code>MINIAPP_LINK</code>
+                (прямая ссылка Mini App из BotFather), затем добавь бота <b>админом</b> канала с правами «Публикация» и «Закрепление».
+              </div>
+            ) : (
+              <>
+                <div className="nf-chan-grid">
+                  <div className="nf-chan-row"><span>Канал</span><b>{channel.title || channel.channelId}</b></div>
+                  <div className="nf-chan-row"><span>Бот — админ</span><span className={channel.isAdmin ? 'nf-ok' : 'nf-bad'}>{channel.isAdmin ? 'да' : 'нет'}</span></div>
+                  <div className="nf-chan-row"><span>Может публиковать</span><span className={channel.canPost ? 'nf-ok' : 'nf-bad'}>{channel.canPost ? 'да' : 'нет'}</span></div>
+                  <div className="nf-chan-row"><span>Может закреплять</span><span className={channel.canPin ? 'nf-ok' : 'nf-bad'}>{channel.canPin ? 'да' : 'нет'}</span></div>
+                  <div className="nf-chan-row"><span>Ссылка входа</span><span className={channel.hasLink ? 'nf-ok' : 'nf-bad'}>{channel.hasLink ? 'задана' : 'нет'}</span></div>
+                </div>
+                {channel.error && <div className="nf-note">⚠️ {channelErrText(channel.error)}</div>}
+                <div className="nf-ev-foot" style={{ marginTop: 12 }}>
+                  <span className="nf-vars">Опубликует баннер + текст приветствия с кнопкой «Войти» и закрепит.</span>
+                  <button className="btn btn-gold" disabled={pubBusy || !channel.canPost} onClick={publish}>
+                    {pubBusy ? 'Публикуем…' : 'Опубликовать и закрепить'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Автоматическая рассылка в канал — список повторяющихся постов, можно дополнять */}
+          <div className="card">
+            <div className="card-t">Автоматическая рассылка <span className="dim">(еженедельно, список — можно добавлять и редактировать)</span></div>
             {!channel?.configured && (
               <div className="nf-note">Канал не настроен на сервере (см. раздел «Приветствие в канал» выше) — публикация недоступна.</div>
             )}
-            <RichTextEditor
-              value={chanDraft.text} rows={3}
-              onChange={(v) => setChanDraft((d) => ({ ...d, text: v }))}
-              placeholder="Текст поста — уйдёт в канал как есть"
-            />
-            <ImageField
-              image={chanDraft.image}
-              onPick={async (f) => { const b = await asBanner(f); if (b) setChanDraft((d) => ({ ...d, image: b })) }}
-              onClear={() => setChanDraft((d) => ({ ...d, image: undefined }))}
-            />
-            <div className="nf-btn-row">
-              <label className="nf-btn-field">
-                <span>Текст кнопки</span>
-                <input className="input" value={chanDraft.buttonText} maxLength={60}
-                  onChange={(e) => setChanDraft((d) => ({ ...d, buttonText: e.target.value }))}
-                  placeholder="Войти" />
-              </label>
-              <label className="nf-btn-field nf-btn-field-url">
-                <span>Ссылка кнопки</span>
-                <div className="nf-url-wrap">
-                  <input className="input" value={chanDraft.buttonUrl}
-                    onChange={(e) => setChanDraft((d) => ({ ...d, buttonUrl: e.target.value }))}
-                    placeholder="https://…" />
-                  {chanDraft.buttonUrl && (
-                    <button type="button" className="chip-x nf-url-clear" title="Очистить — впишешь свою ссылку"
-                      onClick={() => setChanDraft((d) => ({ ...d, buttonUrl: '' }))}>×</button>
-                  )}
-                </div>
-              </label>
-            </div>
-            <div className="nf-ev-foot">
-              <button className="nf-link" onClick={() => setChanDraft((d) => ({ ...emptyChanDraft(), buttonUrl: d.buttonUrl }))}>Очистить</button>
-              <div className="nf-ev-foot-r">
-                <button className="btn sm btn-ghost" disabled={busy('test:channel')}
-                  onClick={() => doTest(chanDraft.text, chanDraft.image, 'test:channel', chanDraft.buttonText, chanDraft.buttonUrl)}>
-                  {busy('test:channel') ? 'Тест…' : 'Тест себе'}
-                </button>
-                <button className="btn sm btn-gold" disabled={busy('channel:draft') || !channel?.canPost}
-                  title={channel?.canPost ? undefined : 'Канал не настроен или нет прав — см. раздел выше'}
-                  onClick={() => publishToChannel(chanDraft.text, chanDraft.image, chanDraft.buttonText, chanDraft.buttonUrl, 'channel:draft')}>
-                  {busy('channel:draft') ? 'Публикуем…' : 'Опубликовать в канал'}
-                </button>
+
+            {cfg.channelAuto.length > 0 && (
+              <div className="nf-events" style={{ marginBottom: 16 }}>
+                {cfg.channelAuto.map((post) => {
+                  const tk = `test:${post.id}`, sk = `chanauto:${post.id}`
+                  const sentToday = chanAutoSentToday(post.id)
+                  return (
+                    <div className={`nf-ev ${post.enabled ? '' : 'off'}`} key={post.id}>
+                      <div className="nf-ev-head">
+                        <label className="nf-switch sm">
+                          <input type="checkbox" checked={post.enabled} onChange={(ev) => editChannelAuto(post.id, { enabled: ev.target.checked })} />
+                          <span className="nf-ev-title">{post.title || 'Без названия'}</span>
+                        </label>
+                        <span className="nf-ev-hint">{DOW_NAMES[post.dow]} · {String(post.sendHour).padStart(2, '0')}:00 МСК</span>
+                      </div>
+                      <input className="input" value={post.title} maxLength={120}
+                        onChange={(e) => editChannelAuto(post.id, { title: e.target.value })}
+                        placeholder="Название (для себя, не публикуется)" />
+                      <RichTextEditor
+                        value={post.template} rows={2}
+                        onChange={(v) => editChannelAuto(post.id, { template: v })} placeholder="Текст поста"
+                      />
+                      <ImageField
+                        image={post.image}
+                        onPick={async (f) => { const b = await asBanner(f); if (b) editChannelAuto(post.id, { image: b }) }}
+                        onClear={() => editChannelAuto(post.id, { image: undefined })}
+                      />
+                      <div className="nf-btn-row">
+                        <label className="nf-btn-field">
+                          <span>Текст кнопки</span>
+                          <input className="input" value={post.buttonText} maxLength={60}
+                            onChange={(e) => editChannelAuto(post.id, { buttonText: e.target.value })} placeholder="Войти" />
+                        </label>
+                        <label className="nf-btn-field nf-btn-field-url">
+                          <span>Ссылка кнопки</span>
+                          <input className="input" value={post.buttonUrl}
+                            onChange={(e) => editChannelAuto(post.id, { buttonUrl: e.target.value })} placeholder="https://…" />
+                        </label>
+                      </div>
+                      <div className="nf-ev-foot">
+                        <button className="nf-link danger" onClick={() => delChannelAuto(post.id)}>Удалить</button>
+                        <div className="nf-ev-foot-r">
+                          <label className="nf-hour">
+                            День
+                            <select className="input" value={post.dow} onChange={(ev) => editChannelAuto(post.id, { dow: Number(ev.target.value) })}>
+                              {DOW_NAMES.map((n, i) => <option key={i} value={i}>{n}</option>)}
+                            </select>
+                          </label>
+                          <label className="nf-hour">
+                            Авто в
+                            <select className="input" value={post.sendHour} onChange={(ev) => editChannelAuto(post.id, { sendHour: Number(ev.target.value) })}>
+                              {Array.from({ length: 24 }, (_, h) => (
+                                <option key={h} value={h}>{String(h).padStart(2, '0')}:00 МСК</option>
+                              ))}
+                            </select>
+                          </label>
+                          <button className="btn sm btn-ghost" disabled={busy(tk)}
+                            onClick={() => doTest(renderChanSample(post.template), post.image, tk, post.buttonText, post.buttonUrl)}>
+                            {busy(tk) ? 'Тест…' : 'Тест себе'}
+                          </button>
+                          <button className="btn sm btn-gold" disabled={busy(sk) || !channel?.canPost}
+                            onClick={() => sendChannelAutoNow(post.id, sentToday)}>
+                            {busy(sk) ? 'Публикуем…' : sentToday ? 'Опубликовать ещё раз' : 'Опубликовать сейчас'}
+                          </button>
+                        </div>
+                      </div>
+                      {sentToday && <div className="nf-ev-foot"><span className="nf-sent">Опубликовано сегодня ✓</span></div>}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            <div className="nf-ev nf-compose">
+              <input className="input" value={chanAutoDraft.title} maxLength={120}
+                onChange={(e) => setChanAutoDraft((d) => ({ ...d, title: e.target.value }))}
+                placeholder="Название (для себя, не публикуется)" />
+              <div className="nf-btn-row">
+                <label className="nf-hour">
+                  День
+                  <select className="input" value={chanAutoDraft.dow} onChange={(e) => setChanAutoDraft((d) => ({ ...d, dow: Number(e.target.value) }))}>
+                    {DOW_NAMES.map((n, i) => <option key={i} value={i}>{n}</option>)}
+                  </select>
+                </label>
+                <label className="nf-hour">
+                  Авто в
+                  <select className="input" value={chanAutoDraft.sendHour} onChange={(e) => setChanAutoDraft((d) => ({ ...d, sendHour: Number(e.target.value) }))}>
+                    {Array.from({ length: 24 }, (_, h) => (
+                      <option key={h} value={h}>{String(h).padStart(2, '0')}:00 МСК</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <RichTextEditor
+                value={chanAutoDraft.template} rows={3}
+                onChange={(v) => setChanAutoDraft((d) => ({ ...d, template: v }))}
+                placeholder="Текст поста — будет публиковаться в канал по расписанию"
+              />
+              <ImageField
+                image={chanAutoDraft.image}
+                onPick={async (f) => { const b = await asBanner(f); if (b) setChanAutoDraft((d) => ({ ...d, image: b })) }}
+                onClear={() => setChanAutoDraft((d) => ({ ...d, image: undefined }))}
+              />
+              <div className="nf-btn-row">
+                <label className="nf-btn-field">
+                  <span>Текст кнопки</span>
+                  <input className="input" value={chanAutoDraft.buttonText} maxLength={60}
+                    onChange={(e) => setChanAutoDraft((d) => ({ ...d, buttonText: e.target.value }))}
+                    placeholder="Войти" />
+                </label>
+                <label className="nf-btn-field nf-btn-field-url">
+                  <span>Ссылка кнопки</span>
+                  <div className="nf-url-wrap">
+                    <input className="input" value={chanAutoDraft.buttonUrl}
+                      onChange={(e) => setChanAutoDraft((d) => ({ ...d, buttonUrl: e.target.value }))}
+                      placeholder="https://…" />
+                    {chanAutoDraft.buttonUrl && (
+                      <button type="button" className="chip-x nf-url-clear" title="Очистить — впишешь свою ссылку"
+                        onClick={() => setChanAutoDraft((d) => ({ ...d, buttonUrl: '' }))}>×</button>
+                    )}
+                  </div>
+                </label>
+              </div>
+              <div className="nf-ev-foot">
+                <button className="nf-link" onClick={() => setChanAutoDraft((d) => ({ ...emptyChanAutoDraft(), buttonUrl: d.buttonUrl }))}>Очистить</button>
+                <button className="btn sm btn-gold" onClick={addChannelAutoFromDraft}>Добавить в список</button>
               </div>
             </div>
           </div>
-        )}
-      </div>
 
-      {/* Ближайшие события — ручная отправка (гибрид) */}
-      <div className="card">
-        <div className="card-t">Ближайшие 7 дней <span className="dim">(авто по расписанию · можно отправить вручную)</span></div>
-        {data.upcoming.length === 0 ? (
-          <div className="td-empty">На неделю событий нет.</div>
-        ) : (
-          <div className="nf-up">
-            {data.upcoming.map((o) => {
-              const key = `${o.eventId}:${o.dateKey}`
-              return (
-                <div className={`nf-up-row ${o.enabled ? '' : 'off'}`} key={key}>
-                  <div className="nf-up-when">
-                    <span className="nf-up-date">{o.dateLabel}</span>
-                    <span className="nf-up-ev">{o.title}</span>
-                    <span className="nf-up-hour">→ {String(o.sendHour).padStart(2, '0')}:00</span>
+          {/* Ручная рассылка в канал — разовая публикация поста */}
+          <div className="card">
+            <div className="card-t">Ручная рассылка <span className="dim">(разовый пост — публикуется сразу)</span></div>
+            <div className="nf-ev nf-compose">
+              <RichTextEditor
+                value={chanDraft.text} rows={3}
+                onChange={(v) => setChanDraft((d) => ({ ...d, text: v }))}
+                placeholder="Текст поста — уйдёт в канал как есть"
+              />
+              <ImageField
+                image={chanDraft.image}
+                onPick={async (f) => { const b = await asBanner(f); if (b) setChanDraft((d) => ({ ...d, image: b })) }}
+                onClear={() => setChanDraft((d) => ({ ...d, image: undefined }))}
+              />
+              <div className="nf-btn-row">
+                <label className="nf-btn-field">
+                  <span>Текст кнопки</span>
+                  <input className="input" value={chanDraft.buttonText} maxLength={60}
+                    onChange={(e) => setChanDraft((d) => ({ ...d, buttonText: e.target.value }))}
+                    placeholder="Войти" />
+                </label>
+                <label className="nf-btn-field nf-btn-field-url">
+                  <span>Ссылка кнопки</span>
+                  <div className="nf-url-wrap">
+                    <input className="input" value={chanDraft.buttonUrl}
+                      onChange={(e) => setChanDraft((d) => ({ ...d, buttonUrl: e.target.value }))}
+                      placeholder="https://…" />
+                    {chanDraft.buttonUrl && (
+                      <button type="button" className="chip-x nf-url-clear" title="Очистить — впишешь свою ссылку"
+                        onClick={() => setChanDraft((d) => ({ ...d, buttonUrl: '' }))}>×</button>
+                    )}
                   </div>
-                  <div className="nf-up-msg">{o.hasImage && <span className="nf-cam" title="С картинкой">📷</span>}{o.message}</div>
-                  <div className="nf-up-actions">
-                    {o.sent
-                      ? <span className="nf-sent">Отправлено ✓</span>
-                      : <span className="dim sm">{o.enabled ? 'В очереди' : 'Выключено'}</span>}
-                    <button className="btn sm btn-ghost" disabled={busy(key)} onClick={() => send(o, o.sent)}>
-                      {busy(key) ? 'Отправка…' : o.sent ? 'Отправить ещё раз' : 'Отправить сейчас'}
-                    </button>
-                  </div>
+                </label>
+              </div>
+              <div className="nf-ev-foot">
+                <button className="nf-link" onClick={() => setChanDraft((d) => ({ ...emptyChanDraft(), buttonUrl: d.buttonUrl }))}>Очистить</button>
+                <div className="nf-ev-foot-r">
+                  <button className="btn sm btn-ghost" disabled={busy('test:channel')}
+                    onClick={() => doTest(chanDraft.text, chanDraft.image, 'test:channel', chanDraft.buttonText, chanDraft.buttonUrl)}>
+                    {busy('test:channel') ? 'Тест…' : 'Тест себе'}
+                  </button>
+                  <button className="btn sm btn-gold" disabled={busy('channel:draft') || !channel?.canPost}
+                    title={channel?.canPost ? undefined : 'Канал не настроен или нет прав — см. раздел выше'}
+                    onClick={() => publishToChannel(chanDraft.text, chanDraft.image, chanDraft.buttonText, chanDraft.buttonUrl, 'channel:draft')}>
+                    {busy('channel:draft') ? 'Публикуем…' : 'Опубликовать в канал'}
+                  </button>
                 </div>
-              )
-            })}
+              </div>
+            </div>
           </div>
-        )}
-      </div>
+        </>
+      )}
     </div>
   )
 }

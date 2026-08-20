@@ -193,10 +193,15 @@ export async function getStats(): Promise<Stats> {
 export type NotifEventId = 'sreda' | 'efir' | 'birthday' | 'weekplan' | 'weeksum'
 export type NotifEventCfg = { enabled: boolean; template: string; sendHour: number; image?: string }
 export type CustomNotif = { id: string; title: string; text: string; image?: string }
+export type ChannelPost = {
+  id: string; title: string; dow: number; sendHour: number; enabled: boolean
+  template: string; image?: string; buttonText: string; buttonUrl: string
+}
 export type NotifConfig = {
   enabled: boolean
   events: Record<NotifEventId, NotifEventCfg>
   custom: CustomNotif[]
+  channelAuto: ChannelPost[]
   sent: Record<string, number>
 }
 export type NotifOccurrence = {
@@ -300,6 +305,15 @@ export async function sendCustomNotification(
 ): Promise<SendReport> {
   return runResumable((offset) =>
     postSend('/api/admin/notifications/send-custom', { text, image, offset }), onProgress)
+}
+
+// Опубликовать (или повторно) один авто-пост из списка «В канал» прямо сейчас.
+export type ChannelSendResult = { ok: boolean; posted: boolean; error?: string; alreadySent?: boolean }
+export async function sendChannelAutoPost(id: string, force = false): Promise<ChannelSendResult> {
+  const r = await fetch(`${API_BASE}/api/admin/notifications/channel-send`, {
+    method: 'POST', headers: headers(), body: JSON.stringify({ id, force }),
+  })
+  return (await r.json().catch(() => ({ ok: false, posted: false, error: 'network' }))) as ChannelSendResult
 }
 
 export type ChannelStatus = {

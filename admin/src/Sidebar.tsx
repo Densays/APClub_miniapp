@@ -30,8 +30,7 @@ export const NAV: NavGroup[] = [
     { key: 'payments', label: 'Платежи', icon: 'payments' },
   ] },
   { title: 'Коммуникации', items: [
-    { key: 'notifications', label: 'Уведомления', icon: 'bell', active: true },
-    { key: 'mailings', label: 'Рассылки', icon: 'mail' },
+    { key: 'notifications', label: 'Рассылка', icon: 'bell', active: true },
   ] },
 ]
 

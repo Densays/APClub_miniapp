@@ -8,6 +8,7 @@
 
 import { store } from './store.ts'
 import type { Profile } from './store.ts'
+import { publishChannelCustom } from './bot.ts'
 
 const NOTIF_KEY = '__notifications'
 const BOT_TOKEN = process.env.BOT_TOKEN ?? ''
@@ -26,11 +27,26 @@ export type EventConfig = {
 // Произвольное (кастомное) уведомление — сохранённый шаблон для ручной рассылки.
 export type CustomNotif = { id: string; title: string; text: string; image?: string }
 
+// Автоматический повторяющийся пост в канал (свой список — можно добавлять/удалять).
+// dow: 0=Вс..6=Сб, как у EventDef.dow. Дедуп — та же карта sent, ключ `chan:<id>:<date>`.
+export type ChannelPost = {
+  id: string
+  title: string // для себя (в списке админки, не публикуется)
+  dow: number // 0..6 — день недели авто-публикации
+  sendHour: number // час МСК
+  enabled: boolean
+  template: string // текст поста, плейсхолдер {date}
+  image?: string
+  buttonText: string
+  buttonUrl: string
+}
+
 export type NotifConfig = {
   enabled: boolean // общий рубильник всех уведомлений
   events: Record<EventId, EventConfig>
   custom: CustomNotif[] // сохранённые произвольные уведомления (CRUD из админки)
-  sent: Record<string, number> // ключ `${eventId}:${YYYY-MM-DD}` → время отправки (дедуп)
+  channelAuto: ChannelPost[] // автоматические повторяющиеся посты в канал
+  sent: Record<string, number> // ключ `${eventId}:${YYYY-MM-DD}` / `chan:<id>:<date>` → время отправки (дедуп)
 }
 
 // Определение расписания — зеркалит Calendar в мини-аппе.
@@ -108,7 +124,7 @@ export function defaultConfig(): NotifConfig {
   for (const d of EVENT_DEFS) {
     events[d.id] = { enabled: true, template: d.defaultTemplate, sendHour: d.defaultHour }
   }
-  return { enabled: true, events, custom: [], sent: {} }
+  return { enabled: true, events, custom: [], channelAuto: [], sent: {} }
 }
 
 // Санитайзер списка произвольных уведомлений.
@@ -123,6 +139,31 @@ function sanitizeCustom(input: unknown): CustomNotif[] {
       image: typeof c.image === 'string' && c.image.startsWith('data:image/') ? c.image.slice(0, 4_000_000) : undefined,
     }))
     .filter((c) => c.text.trim().length > 0 || c.image)
+    .slice(0, 50)
+}
+
+const clampDow = (v: unknown, def = 3): number => {
+  const n = Math.floor(Number(v))
+  return Number.isFinite(n) && n >= 0 && n <= 6 ? n : def
+}
+
+// Санитайзер списка авто-постов в канал.
+function sanitizeChannelAuto(input: unknown): ChannelPost[] {
+  if (!Array.isArray(input)) return []
+  return input
+    .filter((c): c is Record<string, unknown> => !!c && typeof c === 'object')
+    .map((c, i) => ({
+      id: String(c.id ?? '').slice(0, 40) || `ch${i}`,
+      title: String(c.title ?? '').slice(0, 120),
+      dow: clampDow(c.dow),
+      sendHour: clampHour(c.sendHour, 10),
+      enabled: typeof c.enabled === 'boolean' ? c.enabled : true,
+      template: String(c.template ?? '').slice(0, 1500),
+      image: typeof c.image === 'string' && c.image.startsWith('data:image/') ? c.image.slice(0, 4_000_000) : undefined,
+      buttonText: String(c.buttonText ?? '').slice(0, 60),
+      buttonUrl: String(c.buttonUrl ?? '').slice(0, 500),
+    }))
+    .filter((c) => c.template.trim().length > 0 || c.image)
     .slice(0, 50)
 }
 
@@ -144,6 +185,7 @@ export async function loadConfig(): Promise<NotifConfig> {
     enabled: typeof row.enabled === 'boolean' ? row.enabled : true,
     events,
     custom: sanitizeCustom(row.custom),
+    channelAuto: sanitizeChannelAuto(row.channelAuto),
     sent: (row.sent && typeof row.sent === 'object' ? row.sent : {}) as Record<string, number>,
   }
 }
@@ -162,12 +204,13 @@ async function saveConfig(cfg: NotifConfig): Promise<void> {
 // Обновление конфига из админки (не трогаем sent — он служебный).
 export async function updateConfig(input: unknown): Promise<NotifConfig> {
   const cur = await loadConfig()
-  const src = (input ?? {}) as { enabled?: unknown; events?: Record<string, unknown>; custom?: unknown }
+  const src = (input ?? {}) as { enabled?: unknown; events?: Record<string, unknown>; custom?: unknown; channelAuto?: unknown }
   const next: NotifConfig = {
     enabled: typeof src.enabled === 'boolean' ? src.enabled : cur.enabled,
     events: { ...cur.events },
-    // custom заменяем целиком, если пришёл массив (полный список из админки); иначе оставляем.
+    // custom/channelAuto заменяем целиком, если пришёл массив (полный список из админки); иначе оставляем.
     custom: Array.isArray(src.custom) ? sanitizeCustom(src.custom) : cur.custom,
+    channelAuto: Array.isArray(src.channelAuto) ? sanitizeChannelAuto(src.channelAuto) : cur.channelAuto,
     sent: cur.sent,
   }
   for (const d of EVENT_DEFS) {
@@ -464,6 +507,28 @@ export async function sendTest(chatId: string, text?: string, image?: string): P
     : sendText(String(chatId), caption)
 }
 
+// ── Авто-посты в канал (список, повторяются еженедельно по dow+sendHour) ───────
+export type ChannelSendResult = { ok: boolean; posted: boolean; error?: string; alreadySent?: boolean }
+
+// Опубликовать один авто-пост в канал «сейчас» (планировщиком или вручную из админки).
+// Дедуп — на сегодняшний МСК-день; force игнорирует его (повторная публикация).
+export async function sendChannelPost(id: string, opts: { force?: boolean } = {}): Promise<ChannelSendResult> {
+  const cfg = await loadConfig()
+  const post = cfg.channelAuto.find((c) => c.id === id)
+  if (!post) return { ok: false, posted: false, error: 'not_found' }
+  const dateKey = mskDateKey(Date.now())
+  const key = `chan:${id}:${dateKey}`
+  if (cfg.sent[key] && !opts.force) return { ok: true, posted: false, alreadySent: true }
+  const p = mskParts(Date.now())
+  const text = renderTemplate(post.template, { date: `${String(p.day).padStart(2, '0')}.${String(p.mo + 1).padStart(2, '0')}` })
+  const result = await publishChannelCustom(text, post.image, post.buttonText, post.buttonUrl)
+  if (result.ok && result.posted) {
+    cfg.sent[key] = Date.now()
+    await saveConfig(cfg)
+  }
+  return result
+}
+
 // ── Авто-планировщик ────────────────────────────────────────────────────────────
 // Вызывается по таймеру. Для сегодняшних событий, у которых наступил час отправки
 // и которые ещё не слали, — рассылает и помечает в sent. Дедуп по ключу день+событие.
@@ -486,5 +551,12 @@ export async function runDueNotifications(): Promise<void> {
     if (cfg.sent[`${def.id}:${dateKey}`]) continue // уже отправляли сегодня
     const report = await sendEvent(def.id, dateKey, {})
     console.log(`[notify] ${def.id} ${dateKey}: доставлено ${report.delivered}, пропущено ${report.skipped}, ошибок ${report.failed}`)
+  }
+  for (const post of cfg.channelAuto) {
+    if (!post.enabled || post.dow !== p.dow) continue
+    if (p.hour < post.sendHour) continue
+    if (cfg.sent[`chan:${post.id}:${dateKey}`]) continue
+    const result = await sendChannelPost(post.id, {})
+    console.log(`[notify] channel ${post.id} ${dateKey}: posted=${result.posted}${result.error ? ` error=${result.error}` : ''}`)
   }
 }
