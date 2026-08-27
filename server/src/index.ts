@@ -77,7 +77,7 @@ const CORS_ALLOW = [
 // сайта (лендинг деплоится на отдельный домен), поэтому Origin любой. Свой
 // cors({origin:true}) и парсер тела, чтобы не зависеть от allowlist ниже.
 // Защита: honeypot-поле + лимиты длины + rate-limit по IP.
-const applyCors = cors({ origin: true })
+const applyCors = cors({ origin: true, methods: ['POST'] })
 const applyHits = new Map<string, number[]>()
 app.options('/api/club-application', applyCors)
 app.post('/api/club-application', applyCors, express.json({ limit: '32kb' }), async (req, res) => {
