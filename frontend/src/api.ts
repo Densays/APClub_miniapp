@@ -1,6 +1,6 @@
 import * as TG from '@telegram-apps/sdk-react'
 
-// Клиент API мини-приложения. В dev Vite проксирует /api → localhost:3000,
+// Клиент API мини-приложения. В dev Vite проксирует /api → localhost:3001,
 // в проде адрес берётся из VITE_API_URL.
 const API_BASE = (import.meta.env.VITE_API_URL as string) || ''
 

@@ -1,6 +1,6 @@
 // API-клиент браузерной админки. Авторизация — по токену (= пароль), который
 // сохраняется в localStorage и шлётся в заголовке x-admin-token.
-// В dev Vite проксирует /api → localhost:3000; в проде — VITE_API_URL.
+// В dev Vite проксирует /api → localhost:3001; в проде — VITE_API_URL.
 
 const API_BASE = (import.meta.env.VITE_API_URL as string) || ''
 const TOKEN_KEY = 'apclub-admin-token'

@@ -9,8 +9,11 @@ export default defineConfig({
     port: 5173,
     // Разрешаем хосты cloudflare-туннеля (для теста Mini App внутри Telegram).
     allowedHosts: ['.trycloudflare.com'],
+    // 3001, not the API server's old default 3000 — that port is now
+    // TradeJournal's locally (~/Densays/TradeJournal), see server/.env's
+    // PORT comment.
     proxy: {
-      '/api': 'http://localhost:3000',
+      '/api': 'http://localhost:3001',
     },
   },
 })
