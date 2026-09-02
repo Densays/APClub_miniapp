@@ -29,6 +29,9 @@ export const NAV: NavGroup[] = [
   { title: 'Подписки', items: [
     { key: 'payments', label: 'Платежи', icon: 'payments' },
   ] },
+  { title: 'Интеграции', items: [
+    { key: 'tradejournal', label: 'Trade Journal', icon: 'chart', active: true },
+  ] },
   { title: 'Коммуникации', items: [
     { key: 'notifications', label: 'Рассылка', icon: 'bell', active: true },
   ] },

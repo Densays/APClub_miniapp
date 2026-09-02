@@ -474,3 +474,57 @@ export function fileToAvatar(file: File): Promise<string> {
     reader.readAsDataURL(file)
   })
 }
+
+// ── Trade Journal (мост к соседнему проекту, см. server/src/tradejournal.ts) ──
+export type TjOverview = {
+  userCount: number
+  connectionsByExchange: { exchange: string; count: number }[]
+  depositTotal: number
+  closedTradeCount: number
+  winRate: number | null
+  pnl: number
+  openTicketCount: number
+}
+export type TjUser = {
+  id: string
+  email: string
+  displayName: string | null
+  journalMode: string
+  isAdmin: boolean
+  createdAt: string
+  exchangeConnectionCount: number
+  closedTradeCount: number
+  winRate: number | null
+  pnl: number
+}
+export type TjExchangeConnection = {
+  exchange: string
+  label: string
+  lastSyncedAt: string | null
+  lastSyncError: string | null
+}
+export type TjUserProfile = TjUser & {
+  depositTotal: number
+  exchangeConnections: TjExchangeConnection[]
+  recentClosedTrades: { ticker: string; exchangeLabel: string; direction: string; closedAt: string | null; pnl: number }[]
+}
+export type TjConnection = {
+  id: string
+  userEmail: string
+  exchange: string
+  label: string
+  lastSyncedAt: string | null
+  lastSyncError: string | null
+}
+
+async function tjGet<T>(path: string): Promise<T> {
+  const r = await fetch(`${API_BASE}${path}`, { headers: headers() })
+  if (r.status === 401) throw new Error('unauth')
+  if (!r.ok) throw new Error(`Trade Journal: не удалось загрузить (${r.status})`)
+  return (await r.json()) as T
+}
+
+export const getTjOverview = () => tjGet<TjOverview>('/api/admin/tradejournal/overview')
+export const getTjUsers = () => tjGet<TjUser[]>('/api/admin/tradejournal/users')
+export const getTjUserProfile = (id: string) => tjGet<TjUserProfile>(`/api/admin/tradejournal/users/${id}`)
+export const getTjConnections = () => tjGet<TjConnection[]>('/api/admin/tradejournal/connections')

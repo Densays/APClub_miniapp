@@ -22,6 +22,7 @@ import {
   type EventId,
 } from './notifications.ts'
 import { startBot, channelStatus, publishChannelEntry, publishChannelCustom, sendTestWithButton, handleUpdate, setWebhook, fetchUsername, sendNetworkingRequest, confirmNetworking, flushFollowups, sendEfirRegistrationAlert, sendClubApplication, sendFastMoneyApplication } from './bot.ts'
+import { tjOverview, tjUsers, tjUserProfile, tjConnections } from './tradejournal.ts'
 
 const app = express()
 const PORT = Number(process.env.PORT) || 3000
@@ -1238,6 +1239,27 @@ app.post('/api/buddy', ah(async (req, res) => {
   const pick = candidates[Math.floor(Math.random() * candidates.length)]
   await store.upsert(meId, { buddy: { month, userId: pick.userId } })
   res.json({ ok: true, month, alreadyChosen: false, buddy: pick })
+}))
+
+// Вкладка «Trade Journal» — тонкий проксирующий слой поверх соседнего
+// проекта (см. server/src/tradejournal.ts). Тот же requireAdmin-гард, что и
+// у остальных /api/admin/* роутов; секрет к TradeJournal живёт только в
+// env этого сервера, наружу (в фронт) никогда не попадает.
+app.get('/api/admin/tradejournal/overview', ah(async (req, res) => {
+  if (!(await requireAdmin(req, res))) return
+  res.json(await tjOverview())
+}))
+app.get('/api/admin/tradejournal/users', ah(async (req, res) => {
+  if (!(await requireAdmin(req, res))) return
+  res.json(await tjUsers())
+}))
+app.get('/api/admin/tradejournal/users/:id', ah(async (req, res) => {
+  if (!(await requireAdmin(req, res))) return
+  res.json(await tjUserProfile(req.params.id))
+}))
+app.get('/api/admin/tradejournal/connections', ah(async (req, res) => {
+  if (!(await requireAdmin(req, res))) return
+  res.json(await tjConnections())
 }))
 
 const buddyName = (p?: Profile | null) => (p ? (`${p.firstName ?? ''} ${p.lastName ?? ''}`.trim() || p.userId) : '')

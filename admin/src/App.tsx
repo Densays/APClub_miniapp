@@ -12,6 +12,7 @@ import Pairs from './Pairs'
 import NetworkingAdmin from './NetworkingAdmin'
 import EfirRegistrations from './EfirRegistrations'
 import PreviewPanel from './PreviewPanel'
+import TradeJournal from './TradeJournal'
 
 type Theme = 'dark' | 'light'
 
@@ -105,6 +106,7 @@ function Shell({ catalog, theme, onToggleTheme, onCatalogChange, onLevelsChange,
       case 'achievements': return <AchievementsAdmin only="money" onSaved={onCatalogChange} />
       case 'roles': return <AchievementsAdmin only="role" onSaved={onCatalogChange} />
       case 'notifications': return <Notifications />
+      case 'tradejournal': return <TradeJournal />
       default: return <Stub title={LABELS[section] ?? 'Раздел'} />
     }
   }
