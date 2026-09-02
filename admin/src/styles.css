@@ -453,6 +453,10 @@ textarea.input { resize: vertical; }
 
 /* Вкладка «Trade Journal» */
 .tj-tabs { display: flex; gap: 6px; margin: 4px 0 14px; }
+/* PnL может быть 8-9-значным на реальных данных — своя полноширинная строка,
+   не деля место с остальными KPI в auto-fill сетке. */
+.kpi-wide { margin-bottom: 18px; }
+.kpi-wide .kpi-value { font-size: 34px; }
 .tj-tab {
   background: var(--panel2); border: 1px solid var(--line); color: var(--gray);
   border-radius: 9px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;

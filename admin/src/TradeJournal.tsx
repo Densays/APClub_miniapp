@@ -10,7 +10,7 @@ import {
 // (личный кабинет резидентов для учёта сделок/бирж/PnL). Данные и мутации
 // идут через server/src/tradejournal.ts, который проксирует TradeJournal'овский
 // /api/admin/* с отдельным серверным секретом и подмешивает профиль резидента
-// АПКЛАБ по e-mail (matchApclubProfile в index.ts). Ключи биржи здесь никогда
+// APClub по e-mail (matchApclubProfile в index.ts). Ключи биржи здесь никогда
 // не читаются — только запись новых (см. TradeJournal'овский
 // replaceConnectionCredentials) и удаление подключения целиком.
 
@@ -95,7 +95,7 @@ function ErrorBanner({ err }: { err: string }) {
 }
 
 // ── Контакт резидента: почта всегда видна (для сверки) + Telegram, если
-// e-mail совпал с профилем АПКЛАБ ─────────────────────────────────────────
+// e-mail совпал с профилем APClub ─────────────────────────────────────────
 function ResidentContact({ email, apclub }: { email: string; apclub: TjApclubMatch }) {
   return (
     <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
@@ -107,7 +107,7 @@ function ResidentContact({ email, apclub }: { email: string; apclub: TjApclubMat
 
 function ProfileButton({ apclub }: { apclub: TjApclubMatch }) {
   const [open, setOpen] = useState(false)
-  if (!apclub) return <span className="hint">Профиль АПКЛАБ не найден</span>
+  if (!apclub) return <span className="hint">Резидент не найден в APClub — почта не совпала ни с одним профилем</span>
   return (
     <>
       <button className="btn btn-ghost sm" onClick={(e) => { e.stopPropagation(); setOpen(true) }}>Профиль</button>
@@ -285,7 +285,6 @@ function OverviewView() {
     { label: 'Суммарные депозиты', value: `${fmtCompact(data.depositTotal)} $`, title: `${fmtMoney(data.depositTotal)} $` },
     { label: 'Закрытых сделок всего', value: String(data.closedTradeCount) },
     { label: 'Средний win-rate резидентов', value: data.avgResidentWinRate == null ? '—' : `${data.avgResidentWinRate.toFixed(0)}%` },
-    { label: 'Суммарный PnL', value: `${data.pnl > 0 ? '+' : ''}${fmtCompact(data.pnl)} $`, title: `${data.pnl > 0 ? '+' : ''}${fmtMoney(data.pnl)} $`, color: pnlColor(data.pnl) },
   ]
 
   return (
@@ -297,6 +296,12 @@ function OverviewView() {
             <div className="kpi-value" title={k.title} style={k.color ? { color: k.color } : undefined}>{k.value}</div>
           </div>
         ))}
+      </div>
+      <div className="kpi kpi-wide">
+        <div className="kpi-top"><span className="kpi-label">Суммарный PnL</span></div>
+        <div className="kpi-value" title={`${data.pnl > 0 ? '+' : ''}${fmtMoney(data.pnl)} $`} style={{ color: pnlColor(data.pnl) }}>
+          {data.pnl > 0 ? '+' : ''}{fmtCompact(data.pnl)} $
+        </div>
       </div>
 
       <div className="card">
@@ -379,6 +384,13 @@ function UserDetailView({ id, onBack }: { id: string; onBack: () => void }) {
                 <ProfileButton apclub={profile.apclub} />
               </div>
             </div>
+            <div style={{ marginLeft: 'auto' }}>
+              {profile.apclub ? (
+                <TgButton p={{ username: profile.apclub.username, userId: profile.apclub.userId, social: profile.apclub.social }} label />
+              ) : (
+                <span className="hint">Написать в Telegram нельзя — резидент не найден в APClub</span>
+              )}
+            </div>
           </div>
 
           <div className="kpi-grid">
@@ -394,11 +406,11 @@ function UserDetailView({ id, onBack }: { id: string; onBack: () => void }) {
               <div className="kpi-top"><span className="kpi-label">Win-rate</span></div>
               <div className="kpi-value">{profile.winRate == null ? '—' : `${profile.winRate.toFixed(0)}%`}</div>
             </div>
-            <div className="kpi">
-              <div className="kpi-top"><span className="kpi-label">Суммарный PnL</span></div>
-              <div className="kpi-value" title={`${profile.pnl > 0 ? '+' : ''}${fmtMoney(profile.pnl)} $`} style={{ color: pnlColor(profile.pnl) }}>
-                {profile.pnl > 0 ? '+' : ''}{fmtCompact(profile.pnl)} $
-              </div>
+          </div>
+          <div className="kpi kpi-wide">
+            <div className="kpi-top"><span className="kpi-label">Суммарный PnL</span></div>
+            <div className="kpi-value" title={`${profile.pnl > 0 ? '+' : ''}${fmtMoney(profile.pnl)} $`} style={{ color: pnlColor(profile.pnl) }}>
+              {profile.pnl > 0 ? '+' : ''}{fmtCompact(profile.pnl)} $
             </div>
           </div>
 
