@@ -457,6 +457,16 @@ textarea.input { resize: vertical; }
    не деля место с остальными KPI в auto-fill сетке. */
 .kpi-wide { margin-bottom: 18px; }
 .kpi-wide .kpi-value { font-size: 34px; }
+
+/* Simple KPI numbers on the left, the 0-100 win-rate gauge on the right —
+   mirrors TradeJournal's own dashboard hero row (chart left, gauge right). */
+.tj-hero-row { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; margin-bottom: 18px; align-items: stretch; }
+.tj-hero-kpis { margin-bottom: 0; }
+.tj-gauge-card { display: flex; flex-direction: column; align-items: center; }
+.tj-gauge-card > svg { flex: 1; min-height: 160px; }
+@media (max-width: 900px) {
+  .tj-hero-row { grid-template-columns: 1fr; }
+}
 .tj-tab {
   background: var(--panel2); border: 1px solid var(--line); color: var(--gray);
   border-radius: 9px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;

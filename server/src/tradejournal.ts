@@ -74,6 +74,7 @@ export type TjOverview = {
   depositTotal: number
   closedTradeCount: number
   avgResidentWinRate: number | null
+  residentsWithTradesCount: number
   pnl: number
   openTicketCount: number
 }

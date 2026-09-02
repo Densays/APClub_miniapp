@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { TgButton } from './TgButton'
 import {
   getTjOverview, getTjUsers, getTjUserProfile, getTjConnections,
@@ -24,6 +24,102 @@ const fmtCompact = (n: number) => {
 }
 const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleString('ru-RU') : '—')
 const pnlColor = (n: number) => (n < 0 ? 'var(--danger)' : 'var(--green)')
+const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3)
+
+// Same half-circle gauge as the resident's own dashboard in TradeJournal
+// (dashboard-widgets.tsx WinRateGauge) — arc, ticks, animated needle — ported
+// here rather than shared across the two separate repos, redrawn with this
+// app's own CSS vars. The red→orange→yellow→green stops are TradeJournal's
+// fixed semantic scale (--status-critical/serious/warning/good), not a theme
+// color, so they're hardcoded the same on both sides deliberately.
+function WinRateGauge({ pct, subtitle }: { pct: number; subtitle: string }) {
+  const size = 220
+  const cx = size / 2
+  const cy = size / 2 + 6
+  const r = 78
+  const tickR = r + 14
+  const labelR = r + 26
+
+  const arcPoint = (a: number, radius = r) => ({ x: cx + radius * Math.cos(a), y: cy - radius * Math.sin(a) })
+  const start = arcPoint(Math.PI)
+  const top = arcPoint(Math.PI / 2)
+  const end = arcPoint(0)
+  const fullArc = `M ${start.x} ${start.y} A ${r} ${r} 0 0 1 ${top.x} ${top.y} A ${r} ${r} 0 0 1 ${end.x} ${end.y}`
+
+  const majorTicks = [0, 20, 40, 60, 80, 100]
+  const minorTicks: number[] = []
+  for (let t = 5; t < 100; t += 5) if (t % 20 !== 0) minorTicks.push(t)
+
+  const pctY = cy + 46
+  const subtitleY = pctY + 24
+  const needleLen = r - 20
+
+  const needleRef = useRef<SVGGElement>(null)
+  const pctTextRef = useRef<SVGTextElement>(null)
+
+  useEffect(() => {
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    const applyPct = (p: number) => {
+      const needleAngleDeg = 1.8 * p - 180
+      if (needleRef.current) needleRef.current.style.transform = `rotate(${needleAngleDeg}deg)`
+      if (pctTextRef.current) pctTextRef.current.textContent = `${Math.round(p)}%`
+    }
+    if (reduced) { applyPct(pct); return }
+    const DURATION = 1100
+    const t0 = performance.now()
+    let raf = 0
+    function frame(now: number) {
+      const t = Math.min(1, (now - t0) / DURATION)
+      applyPct(pct * easeOutCubic(t))
+      if (t < 1) raf = requestAnimationFrame(frame)
+    }
+    raf = requestAnimationFrame(frame)
+    return () => cancelAnimationFrame(raf)
+  }, [pct])
+
+  return (
+    <svg viewBox={`0 0 ${size} ${subtitleY + 12}`} width="100%" height="100%" role="img" aria-label="Win-rate">
+      <defs>
+        <linearGradient id="tj-winrate-arc" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#d03b3b" />
+          <stop offset="34%" stopColor="#ec835a" />
+          <stop offset="67%" stopColor="#fab219" />
+          <stop offset="100%" stopColor="#0ca30c" />
+        </linearGradient>
+      </defs>
+
+      <path d={fullArc} fill="none" stroke="url(#tj-winrate-arc)" strokeWidth={12} strokeLinecap="round" />
+      {minorTicks.map((t) => {
+        const angle = Math.PI - (t / 100) * Math.PI
+        const p1 = arcPoint(angle, tickR - 3)
+        const p2 = arcPoint(angle, tickR)
+        return <line key={t} x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="var(--line2)" strokeWidth={1} />
+      })}
+      {majorTicks.map((t) => {
+        const angle = Math.PI - (t / 100) * Math.PI
+        const p1 = arcPoint(angle, tickR - 6)
+        const p2 = arcPoint(angle, tickR)
+        const label = arcPoint(angle, labelR)
+        return (
+          <g key={t}>
+            <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="var(--gray)" strokeWidth={1.5} />
+            {t !== 0 && t !== 100 && (
+              <text x={label.x} y={label.y + 4} textAnchor="middle" fontSize={10} fill="var(--gray)">{t}</text>
+            )}
+          </g>
+        )
+      })}
+
+      <g ref={needleRef} style={{ transform: 'rotate(-180deg)', transformOrigin: `${cx}px ${cy}px` }}>
+        <line x1={cx} y1={cy} x2={cx + needleLen} y2={cy} stroke="var(--text)" strokeWidth={3} strokeLinecap="round" />
+      </g>
+      <circle cx={cx} cy={cy} r={6} fill="var(--text)" />
+
+      <text ref={pctTextRef} x={cx} y={pctY} textAnchor="middle" fontSize={24} fontWeight={700} fill="var(--text)">0%</text>
+      <text x={cx} y={subtitleY} textAnchor="middle" fontSize={11} fill="var(--gray)">{subtitle}</text>
+    </svg>
+  )
+}
 
 const CRED_FIELDS: Record<string, { key: string; label: string; password?: boolean }[]> = {
   key_secret: [
@@ -284,18 +380,26 @@ function OverviewView() {
     { label: 'Подключено бирж всего', value: String(data.connectionsByExchange.reduce((s, r) => s + r.count, 0)) },
     { label: 'Суммарные депозиты', value: `${fmtCompact(data.depositTotal)} $`, title: `${fmtMoney(data.depositTotal)} $` },
     { label: 'Закрытых сделок всего', value: String(data.closedTradeCount) },
-    { label: 'Средний win-rate резидентов', value: data.avgResidentWinRate == null ? '—' : `${data.avgResidentWinRate.toFixed(0)}%` },
   ]
 
   return (
     <>
-      <div className="kpi-grid">
-        {KPIS.map((k) => (
-          <div className="kpi" key={k.label}>
-            <div className="kpi-top"><span className="kpi-label">{k.label}</span></div>
-            <div className="kpi-value" title={k.title} style={k.color ? { color: k.color } : undefined}>{k.value}</div>
-          </div>
-        ))}
+      <div className="tj-hero-row">
+        <div className="kpi-grid tj-hero-kpis">
+          {KPIS.map((k) => (
+            <div className="kpi" key={k.label}>
+              <div className="kpi-top"><span className="kpi-label">{k.label}</span></div>
+              <div className="kpi-value" title={k.title} style={k.color ? { color: k.color } : undefined}>{k.value}</div>
+            </div>
+          ))}
+        </div>
+        <div className="kpi tj-gauge-card">
+          <div className="kpi-top"><span className="kpi-label">Средний win-rate резидентов</span></div>
+          <WinRateGauge
+            pct={data.avgResidentWinRate ?? 0}
+            subtitle={`${data.residentsWithTradesCount} ${data.residentsWithTradesCount === 1 ? 'резидент' : 'резидентов'}`}
+          />
+        </div>
       </div>
       <div className="kpi kpi-wide">
         <div className="kpi-top"><span className="kpi-label">Суммарный PnL</span></div>
@@ -393,18 +497,20 @@ function UserDetailView({ id, onBack }: { id: string; onBack: () => void }) {
             </div>
           </div>
 
-          <div className="kpi-grid">
-            <div className="kpi">
-              <div className="kpi-top"><span className="kpi-label">Депозиты</span></div>
-              <div className="kpi-value">{fmtMoney(profile.depositTotal)} $</div>
+          <div className="tj-hero-row">
+            <div className="kpi-grid tj-hero-kpis">
+              <div className="kpi">
+                <div className="kpi-top"><span className="kpi-label">Депозиты</span></div>
+                <div className="kpi-value">{fmtMoney(profile.depositTotal)} $</div>
+              </div>
+              <div className="kpi">
+                <div className="kpi-top"><span className="kpi-label">Закрытых сделок</span></div>
+                <div className="kpi-value">{profile.closedTradeCount}</div>
+              </div>
             </div>
-            <div className="kpi">
-              <div className="kpi-top"><span className="kpi-label">Закрытых сделок</span></div>
-              <div className="kpi-value">{profile.closedTradeCount}</div>
-            </div>
-            <div className="kpi">
+            <div className="kpi tj-gauge-card">
               <div className="kpi-top"><span className="kpi-label">Win-rate</span></div>
-              <div className="kpi-value">{profile.winRate == null ? '—' : `${profile.winRate.toFixed(0)}%`}</div>
+              <WinRateGauge pct={profile.winRate ?? 0} subtitle={`${profile.closedTradeCount} сделок`} />
             </div>
           </div>
           <div className="kpi kpi-wide">
