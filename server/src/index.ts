@@ -22,7 +22,7 @@ import {
   type EventId,
 } from './notifications.ts'
 import { startBot, channelStatus, publishChannelEntry, publishChannelCustom, sendTestWithButton, handleUpdate, setWebhook, fetchUsername, sendNetworkingRequest, confirmNetworking, flushFollowups, sendEfirRegistrationAlert, sendClubApplication, sendFastMoneyApplication } from './bot.ts'
-import { tjOverview, tjUsers, tjUserProfile, tjConnections } from './tradejournal.ts'
+import { tjOverview, tjUsers, tjUserProfile, tjConnections, tjDeleteConnection, tjReplaceConnectionCredentials } from './tradejournal.ts'
 
 const app = express()
 const PORT = Number(process.env.PORT) || 3000
@@ -1245,21 +1245,87 @@ app.post('/api/buddy', ah(async (req, res) => {
 // проекта (см. server/src/tradejournal.ts). Тот же requireAdmin-гард, что и
 // у остальных /api/admin/* роутов; секрет к TradeJournal живёт только в
 // env этого сервера, наружу (в фронт) никогда не попадает.
+// Кросс-ссылка на профиль резидента АПКЛАБ по e-mail — TradeJournal и эта
+// админка не делят одну БД, e-mail — единственное поле, общее для обеих
+// сторон (TradeJournal требует его при регистрации; профиль АПКЛАБ
+// заполняет его на онбординге, см. store.ts EDITABLE_FIELDS). Лёгкая
+// проекция полей, нужных именно для карточки/строки — не весь Profile.
+type ApclubMatch = {
+  userId: string
+  name: string
+  avatar?: string
+  city?: string
+  occupation?: string
+  focus?: string
+  about?: string
+  username?: string
+  social?: Profile['social']
+} | null
+
+let apclubDirectoryCache: { at: number; byEmail: Map<string, Profile> } | null = null
+const APCLUB_DIRECTORY_TTL_MS = 30_000
+
+// store.list() тянет ВСЕ профили (~сотня, с аватарами) — кэшируем на
+// короткое окно, чтобы список из N резидентов TradeJournal не бил по
+// store N раз подряд (endpoint вызывается на каждую загрузку вкладки).
+async function apclubDirectory(): Promise<Map<string, Profile>> {
+  const now = Date.now()
+  if (apclubDirectoryCache && now - apclubDirectoryCache.at < APCLUB_DIRECTORY_TTL_MS) return apclubDirectoryCache.byEmail
+  const all = onlyMembers(await store.list())
+  const byEmail = new Map<string, Profile>()
+  for (const p of all) {
+    if (p.email) byEmail.set(normEmail(p.email), p)
+  }
+  apclubDirectoryCache = { at: now, byEmail }
+  return byEmail
+}
+
+async function matchApclubProfile(email: string): Promise<ApclubMatch> {
+  const emailNorm = normEmail(email)
+  if (!emailNorm) return null
+  const p = (await apclubDirectory()).get(emailNorm)
+  if (!p) return null
+  return {
+    userId: p.userId,
+    name: `${p.firstName ?? ''} ${p.lastName ?? ''}`.trim() || p.username || 'Без имени',
+    avatar: p.avatar,
+    city: p.city,
+    occupation: p.occupation,
+    focus: p.focus,
+    about: p.about,
+    username: p.username,
+    social: p.social,
+  }
+}
+
 app.get('/api/admin/tradejournal/overview', ah(async (req, res) => {
   if (!(await requireAdmin(req, res))) return
   res.json(await tjOverview())
 }))
 app.get('/api/admin/tradejournal/users', ah(async (req, res) => {
   if (!(await requireAdmin(req, res))) return
-  res.json(await tjUsers())
+  const users = await tjUsers()
+  const enriched = await Promise.all(users.map(async (u) => ({ ...u, apclub: await matchApclubProfile(u.email) })))
+  res.json(enriched)
 }))
 app.get('/api/admin/tradejournal/users/:id', ah(async (req, res) => {
   if (!(await requireAdmin(req, res))) return
-  res.json(await tjUserProfile(req.params.id))
+  const profile = await tjUserProfile(req.params.id)
+  res.json({ ...profile, apclub: await matchApclubProfile(profile.email) })
 }))
 app.get('/api/admin/tradejournal/connections', ah(async (req, res) => {
   if (!(await requireAdmin(req, res))) return
-  res.json(await tjConnections())
+  const connections = await tjConnections()
+  const enriched = await Promise.all(connections.map(async (c) => ({ ...c, apclub: await matchApclubProfile(c.userEmail) })))
+  res.json(enriched)
+}))
+app.delete('/api/admin/tradejournal/connections/:id', ah(async (req, res) => {
+  if (!(await requireAdmin(req, res))) return
+  res.json(await tjDeleteConnection(req.params.id))
+}))
+app.put('/api/admin/tradejournal/connections/:id', ah(async (req, res) => {
+  if (!(await requireAdmin(req, res))) return
+  res.json(await tjReplaceConnectionCredentials(req.params.id, req.body ?? {}))
 }))
 
 const buddyName = (p?: Profile | null) => (p ? (`${p.firstName ?? ''} ${p.lastName ?? ''}`.trim() || p.userId) : '')

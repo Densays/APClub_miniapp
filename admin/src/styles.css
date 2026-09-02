@@ -470,11 +470,11 @@ textarea.input { resize: vertical; }
 .tj-row-btn { cursor: pointer; transition: border-color .12s; }
 .tj-row-btn:hover { border-color: var(--gold); }
 .tj-row-2 { grid-template-columns: 1fr 1fr; }
-.tj-row-users { grid-template-columns: 2fr 1fr 0.8fr 0.8fr 0.8fr 1fr; }
-.tj-row-conn { grid-template-columns: 1fr 1.3fr 1.3fr 0.8fr; }
-.tj-row-conn-full { grid-template-columns: 1.5fr 1fr 1.3fr 1.3fr 0.8fr; }
+.tj-row-users { grid-template-columns: 1.5fr 1.6fr 0.9fr 0.7fr 0.7fr 0.8fr; }
+.tj-row-conn { grid-template-columns: 1fr 1.2fr 1.2fr 0.8fr 1.6fr; }
+.tj-row-conn-full { grid-template-columns: 1.6fr 0.9fr 1.1fr 1.1fr 0.8fr 1.6fr; }
 .tj-row-trades { grid-template-columns: 1fr 1.2fr 0.8fr 1fr 1.3fr; }
-@media (max-width: 900px) {
+@media (max-width: 1100px) {
   .tj-row-users, .tj-row-conn, .tj-row-conn-full, .tj-row-trades { grid-template-columns: 1fr 1fr; }
   .tj-row.th { display: none; }
 }

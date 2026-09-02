@@ -476,12 +476,27 @@ export function fileToAvatar(file: File): Promise<string> {
 }
 
 // ── Trade Journal (мост к соседнему проекту, см. server/src/tradejournal.ts) ──
+// apclub — сопоставление по e-mail с профилем резидента АПКЛАБ (null, если
+// почта в TradeJournal не совпала ни с одним профилем клуба); ищется на
+// сервере АПКЛАБ (matchApclubProfile в index.ts), фронт его не вычисляет.
+export type TjApclubMatch = {
+  userId: string
+  name: string
+  avatar?: string
+  city?: string
+  occupation?: string
+  focus?: string
+  about?: string
+  username?: string
+  social?: Social
+} | null
+
 export type TjOverview = {
   userCount: number
   connectionsByExchange: { exchange: string; count: number }[]
   depositTotal: number
   closedTradeCount: number
-  winRate: number | null
+  avgResidentWinRate: number | null
   pnl: number
   openTicketCount: number
 }
@@ -496,10 +511,15 @@ export type TjUser = {
   closedTradeCount: number
   winRate: number | null
   pnl: number
+  apclub: TjApclubMatch
 }
 export type TjExchangeConnection = {
+  id: string
   exchange: string
+  credentialKind: string
   label: string
+  createdAt: string
+  expiresAt: string | null
   lastSyncedAt: string | null
   lastSyncError: string | null
 }
@@ -512,9 +532,13 @@ export type TjConnection = {
   id: string
   userEmail: string
   exchange: string
+  credentialKind: string
   label: string
+  createdAt: string
+  expiresAt: string | null
   lastSyncedAt: string | null
   lastSyncError: string | null
+  apclub: TjApclubMatch
 }
 
 async function tjGet<T>(path: string): Promise<T> {
@@ -528,3 +552,19 @@ export const getTjOverview = () => tjGet<TjOverview>('/api/admin/tradejournal/ov
 export const getTjUsers = () => tjGet<TjUser[]>('/api/admin/tradejournal/users')
 export const getTjUserProfile = (id: string) => tjGet<TjUserProfile>(`/api/admin/tradejournal/users/${id}`)
 export const getTjConnections = () => tjGet<TjConnection[]>('/api/admin/tradejournal/connections')
+
+export async function deleteTjConnection(id: string): Promise<void> {
+  const r = await fetch(`${API_BASE}/api/admin/tradejournal/connections/${id}`, { method: 'DELETE', headers: headers() })
+  if (r.status === 401) throw new Error('unauth')
+  if (!r.ok) throw new Error(`Не удалось отключить биржу (${r.status})`)
+}
+
+export async function replaceTjConnectionCredentials(id: string, credentials: Record<string, string>): Promise<void> {
+  const r = await fetch(`${API_BASE}/api/admin/tradejournal/connections/${id}`, {
+    method: 'PUT',
+    headers: headers(),
+    body: JSON.stringify(credentials),
+  })
+  if (r.status === 401) throw new Error('unauth')
+  if (!r.ok) throw new Error(`Не удалось обновить ключ (${r.status})`)
+}

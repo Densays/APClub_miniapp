@@ -15,6 +15,7 @@ export const NAV: NavGroup[] = [
     { key: 'leaders', label: 'Таблица лидеров', icon: 'leaders', active: true },
     { key: 'allowlist', label: 'Доступ по почте', icon: 'lock', active: true },
     { key: 'efir', label: 'Эфир — регистрации', icon: 'events', active: true },
+    { key: 'tradejournal', label: 'Trade Journal', icon: 'chart', active: true },
   ] },
   { title: 'Геймификация', items: [
     { key: 'achievements', label: 'Достижения', icon: 'tasks', active: true },
@@ -28,9 +29,6 @@ export const NAV: NavGroup[] = [
   ] },
   { title: 'Подписки', items: [
     { key: 'payments', label: 'Платежи', icon: 'payments' },
-  ] },
-  { title: 'Интеграции', items: [
-    { key: 'tradejournal', label: 'Trade Journal', icon: 'chart', active: true },
   ] },
   { title: 'Коммуникации', items: [
     { key: 'notifications', label: 'Рассылка', icon: 'bell', active: true },
