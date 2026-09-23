@@ -107,6 +107,8 @@ function ShareTradeCard({ trade, userCode }: { trade: Trade; userCode: string })
       borderRadius: 16, overflow: 'hidden', color: '#fff',
       border: '1px solid rgba(255,255,255,0.08)',
       width: '100%', boxSizing: 'border-box' as const,
+      aspectRatio: '16/9',
+      display: 'flex', flexDirection: 'column',
     }}>
       {/* TOP */}
       <div style={{ padding: '10px 16px 8px' }}>
@@ -140,7 +142,7 @@ function ShareTradeCard({ trade, userCode }: { trade: Trade; userCode: string })
         </div>
       </div>
       {/* CHART */}
-      <div style={{ padding: '6px 0 2px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+      <div style={{ padding: '4px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', flex: 1, minHeight: 0 }}>
         <ArbTwoLineChart />
       </div>
       {/* BOTTOM */}
