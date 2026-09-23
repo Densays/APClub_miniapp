@@ -269,7 +269,10 @@ export default function ArbixStats() {
   const [showModal, setShowModal] = useState(false)
 
   useEffect(() => {
-    fetch(`${JOURNAL_API}/api/miniapp/stats`, { credentials: 'include' })
+    const initData = (window as any).Telegram?.WebApp?.initData ?? ''
+    const headers: Record<string, string> = {}
+    if (initData) headers['x-telegram-init-data'] = initData
+    fetch(`${JOURNAL_API}/api/miniapp/stats`, { credentials: 'include', headers })
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data) setStats(data) })
       .catch(() => {})
