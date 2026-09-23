@@ -206,7 +206,7 @@ export default function ReportModal({ onClose, onSent }: { onClose: () => void; 
       const dataUrl = await toPng(node, {
         pixelRatio: 2,
         cacheBust: true,
-        backgroundColor: 'transparent',
+        backgroundColor: '#0d0f16',
         width: node.offsetWidth,
         height: node.offsetHeight,
       })
@@ -243,7 +243,7 @@ export default function ReportModal({ onClose, onSent }: { onClose: () => void; 
         <div className="rm-title">Отчёт за день</div>
 
         {/* Карточка — точная копия ShareTradeCard */}
-        <div ref={cardRef} style={{ display: 'block', width: '100%' }}>
+        <div ref={cardRef} style={{ display: 'block', width: '100%', background: '#0d0f16', borderRadius: 16 }}>
           <ShareTradeCard trade={selected} userCode={userCode} />
         </div>
 
