@@ -290,7 +290,7 @@ export default function ArbixStats() {
     <>
     <div className="arbix-stats card">
       <div className="arbix-stats-header">
-        <span className="arbix-stats-title">Arbix Journal</span>
+        <span className="arbix-stats-title">Arbix Stats</span>
         <span className="arbix-stats-badge">Арбитраж</span>
       </div>
 
