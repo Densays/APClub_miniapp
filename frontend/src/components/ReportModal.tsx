@@ -189,16 +189,20 @@ export default function ReportModal({ onClose, onSent }: { onClose: () => void; 
   const handleSend = async () => {
     setSending(true)
     try {
-      const initData = (window as any).Telegram?.WebApp?.initData ?? ''
-      await fetch(`${JOURNAL_API}/api/miniapp/report`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(initData ? { 'x-telegram-init-data': initData } : {}),
-        },
-        credentials: 'include',
-        body: JSON.stringify({ tradeId: selected.id }),
-      })
+      const t = selected
+      const sign = t.pnl >= 0 ? '+' : ''
+      const text = `📊 Отчёт по сделке\n\n${t.ticker}/USDT · ${t.legA.exchangeLabel} ↔ ${t.legB.exchangeLabel}\nРезультат: ${sign}${fmtMoney(t.pnl)} $${t.fee ? `\nКомиссии: ${fmtMoney(t.fee)} $` : ''}${t.funding ? `\nФандинг: ${fmtMoney(t.funding)} $` : ''}\n\nArbix Journal`
+
+      // Копируем текст в буфер
+      try { await navigator.clipboard.writeText(text) } catch {}
+
+      // Открываем топик Отчёты — пользователь вставляет и отправляет сам
+      const tg = (window as any).Telegram?.WebApp
+      if (tg) {
+        tg.openTelegramLink('https://t.me/c/2437297030/2')
+      } else {
+        window.open('https://t.me/c/2437297030/2', '_blank')
+      }
     } catch {}
     setSending(false)
     onSent(); onClose()
@@ -230,7 +234,7 @@ export default function ReportModal({ onClose, onSent }: { onClose: () => void; 
         )}
 
         <button className="rm-send-btn" onClick={handleSend} disabled={sending}>
-          {sending ? 'Отправляю...' : '📤 Отправить в чат'}
+          {sending ? '✓ Текст скопирован, вставьте в чат' : '📤 Отправить в топик Отчёты'}
         </button>
       </div>
     </div>
