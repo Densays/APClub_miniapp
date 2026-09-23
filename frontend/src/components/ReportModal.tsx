@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { toPng } from 'html-to-image'
+import arbixLogo from '../assets/arbix-logo.webp'
 import './ReportModal.css'
 
 const JOURNAL_API = 'https://trade-journal-arbix.vercel.app'
@@ -109,7 +110,9 @@ function ShareTradeCard({ trade }: { trade: Trade }) {
       {/* TOP */}
       <div style={{ padding: '16px 20px 12px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-          <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: '0.12em', color: '#fff' }}>ARBIX</div>
+          <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: '0.12em', color: '#fff' }}>
+              <img src={arbixLogo} alt="Arbix" style={{ height: 28, display: 'block' }} />
+            </div>
           <div style={{ textAlign: 'right', fontSize: 10, color: 'rgba(255,255,255,0.4)', lineHeight: 1.6 }}>
             <div>{dateStr}</div><div>{timeStr}</div>
           </div>
@@ -198,6 +201,7 @@ export default function ReportModal({ onClose, onSent }: { onClose: () => void; 
       const dataUrl = await toPng(node, {
         pixelRatio: 2,
         cacheBust: true,
+        backgroundColor: 'transparent',
         width: node.offsetWidth,
         height: node.offsetHeight,
       })
