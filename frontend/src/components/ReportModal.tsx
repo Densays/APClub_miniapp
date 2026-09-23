@@ -106,8 +106,6 @@ function ShareTradeCard({ trade, userCode }: { trade: Trade; userCode: string })
       background: 'linear-gradient(160deg, #12141a 0%, #0d0f16 60%, #0a0c14 100%)',
       borderRadius: 16, overflow: 'hidden', color: '#fff',
       border: '1px solid rgba(255,255,255,0.08)',
-      width: 640, minHeight: 360,
-      display: 'flex', flexDirection: 'column',
     }}>
       {/* TOP */}
       <div style={{ padding: '16px 20px 12px' }}>
@@ -141,7 +139,7 @@ function ShareTradeCard({ trade, userCode }: { trade: Trade; userCode: string })
         </div>
       </div>
       {/* CHART */}
-      <div style={{ padding: '6px 0 2px', borderBottom: '1px solid rgba(255,255,255,0.05)', flex: 1 }}>
+      <div style={{ padding: '6px 0 2px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
         <ArbTwoLineChart />
       </div>
       {/* BOTTOM */}
