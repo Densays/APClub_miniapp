@@ -93,7 +93,7 @@ function ArbTwoLineChart() {
 }
 
 // ── Точно та же ShareTradeCard из TradeJournal ────────────────────────────
-function ShareTradeCard({ trade }: { trade: Trade }) {
+function ShareTradeCard({ trade, userCode }: { trade: Trade; userCode: string }) {
   const { pnl, pnlNoFees, fee, funding, ticker, legA, legB, closedAt } = trade
   const isPos = pnl >= 0
   const PNL_COLOR = isPos ? GREEN : RED
@@ -106,19 +106,23 @@ function ShareTradeCard({ trade }: { trade: Trade }) {
       background: 'linear-gradient(160deg, #12141a 0%, #0d0f16 60%, #0a0c14 100%)',
       borderRadius: 16, overflow: 'hidden', color: '#fff',
       border: '1px solid rgba(255,255,255,0.08)',
+      width: 360, minHeight: 640,
+      display: 'flex', flexDirection: 'column',
     }}>
       {/* TOP */}
       <div style={{ padding: '16px 20px 12px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-          <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: '0.12em', color: '#fff' }}>
-              <img src={arbixLogo} alt="Arbix" style={{ height: 28, display: 'block' }} />
-            </div>
+          {/* Логотип: треугольник + текст */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <img src={arbixLogo} alt="" style={{ height: 24, display: 'block' }} />
+            <span style={{ fontSize: 18, fontWeight: 800, letterSpacing: '0.08em', color: '#fff' }}>Arbix</span>
+          </div>
           <div style={{ textAlign: 'right', fontSize: 10, color: 'rgba(255,255,255,0.4)', lineHeight: 1.6 }}>
             <div>{dateStr}</div><div>{timeStr}</div>
           </div>
         </div>
         <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.2em', marginBottom: 4 }}>ИТОГ СЕССИИ</div>
-        <div style={{ fontSize: 42, fontWeight: 800, color: PNL_COLOR, lineHeight: 1, fontVariantNumeric: 'tabular-nums', marginBottom: 12 }}>
+        <div style={{ fontSize: 48, fontWeight: 800, color: PNL_COLOR, lineHeight: 1, fontVariantNumeric: 'tabular-nums', marginBottom: 12 }}>
           {pnl > 0 ? '+' : ''}{fmtMoney(pnl)} $
         </div>
         <div style={{ display: 'flex', gap: 20, paddingBottom: 12, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
@@ -137,7 +141,7 @@ function ShareTradeCard({ trade }: { trade: Trade }) {
         </div>
       </div>
       {/* CHART */}
-      <div style={{ padding: '6px 0 2px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+      <div style={{ padding: '6px 0 2px', borderBottom: '1px solid rgba(255,255,255,0.05)', flex: 1 }}>
         <ArbTwoLineChart />
       </div>
       {/* BOTTOM */}
@@ -155,7 +159,7 @@ function ShareTradeCard({ trade }: { trade: Trade }) {
         </div>
         <div style={{ background: 'rgba(30,35,50,0.8)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, padding: '6px 12px' }}>
           <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.5)', marginBottom: 1 }}>arbix.pro</div>
-          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>КОД <span style={{ color: '#fff', fontWeight: 700 }}>ARBIX</span></div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>КОД <span style={{ color: '#fff', fontWeight: 700 }}>{userCode}</span></div>
         </div>
       </div>
     </div>
@@ -227,6 +231,11 @@ export default function ReportModal({ onClose, onSent }: { onClose: () => void; 
     onSent()
   }
 
+  const tgUser = (window as any).Telegram?.WebApp?.initDataUnsafe?.user
+  const userCode = tgUser
+    ? (tgUser.username ?? String(tgUser.id)).replace(/[^a-z0-9]/gi, '').slice(0, 6).toUpperCase()
+    : 'ARBIX'
+
   return (
     <div className="rm-backdrop" onClick={onClose}>
       <div className="rm-sheet" onClick={e => e.stopPropagation()}>
@@ -234,7 +243,7 @@ export default function ReportModal({ onClose, onSent }: { onClose: () => void; 
 
         {/* Карточка — точная копия ShareTradeCard */}
         <div ref={cardRef} style={{ display: 'inline-block' }}>
-          <ShareTradeCard trade={selected} />
+          <ShareTradeCard trade={selected} userCode={userCode} />
         </div>
 
         {/* Выбор сделки */}
