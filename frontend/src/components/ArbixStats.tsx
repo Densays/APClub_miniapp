@@ -334,9 +334,19 @@ export default function ArbixStats() {
       </div>
 
       <div className="arbix-stats-report">
-        <div className="arbix-stats-report-label">Отчёт за день<br/>в Telegram</div>
-        <button className={`arbix-stats-btn${sent ? ' sent' : ''}`} onClick={() => setShowModal(true)} disabled={sent}>
-          {sent ? '✓ Отправлено' : '📤 Отправить'}
+        {/* Миниатюра карточки */}
+        <div style={{
+          width: 56, height: 32, borderRadius: 6, overflow: 'hidden', flexShrink: 0,
+          background: 'linear-gradient(160deg,#12141a,#0a0c14)',
+          border: '1px solid rgba(255,255,255,0.1)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div style={{ color: stats.totalPnl >= 0 ? '#4ade80' : '#fb7185', fontSize: 8, fontWeight: 800 }}>
+            {stats.totalPnl >= 0 ? '+' : ''}{stats.totalPnl.toFixed(0)}$
+          </div>
+        </div>
+        <button className={`arbix-stats-btn${sent ? ' sent' : ''}`} onClick={() => setShowModal(true)} disabled={sent} style={{ flex: 1 }}>
+          {sent ? '✓ Отправлено' : 'Отправить отчёт в чат'}
         </button>
       </div>
     </div>
