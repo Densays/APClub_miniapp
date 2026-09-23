@@ -185,16 +185,36 @@ export default function ReportModal({ onClose, onSent }: { onClose: () => void; 
   const [trades, setTrades] = useState<Trade[]>(DEMO_TRADES)
   const [selected, setSelected] = useState<Trade>(DEMO_TRADES[0]!)
   const [sending, setSending] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const [manualMode, setManualMode] = useState(false)
+  const [manual, setManual] = useState({ ticker: 'BTC', exchangeA: 'Binance', exchangeB: 'Bybit', pnl: '', fee: '', funding: '' })
   const cardRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
+  const fetchTrades = () => {
+    setRefreshing(true)
     fetch(`${JOURNAL_API}/api/miniapp/trades`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
       .then((data: Trade[] | null) => {
         if (data && data.length > 0) { setTrades(data); setSelected(data[0]!) }
       })
       .catch(() => {})
-  }, [])
+      .finally(() => setRefreshing(false))
+  }
+
+  useEffect(() => { fetchTrades() }, [])
+
+  // Карточка для ручного режима
+  const manualTrade: Trade = {
+    id: 'manual', ticker: manual.ticker,
+    pnl: parseFloat(manual.pnl) || 0,
+    pnlNoFees: parseFloat(manual.pnl) || 0,
+    fee: parseFloat(manual.fee) || 0,
+    funding: parseFloat(manual.funding) || 0,
+    closedAt: new Date().toISOString(),
+    legA: { exchangeLabel: manual.exchangeA, direction: 'LONG' },
+    legB: { exchangeLabel: manual.exchangeB, direction: 'SHORT' },
+  }
+  const currentTrade = manualMode ? manualTrade : selected
 
   const handleSend = async () => {
     setSending(true)
@@ -240,15 +260,63 @@ export default function ReportModal({ onClose, onSent }: { onClose: () => void; 
   return (
     <div className="rm-backdrop" onClick={onClose}>
       <div className="rm-sheet" onClick={e => e.stopPropagation()}>
-        <div className="rm-title">Отчёт за день</div>
-
-        {/* Карточка — точная копия ShareTradeCard */}
-        <div ref={cardRef} style={{ display: 'block', width: '100%', background: '#0d0f16', borderRadius: 16 }}>
-          <ShareTradeCard trade={selected} userCode={userCode} />
+        {/* Шапка: заголовок + кнопки режима */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <div className="rm-title" style={{ margin: 0 }}>Отчёт за день</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              className={`rm-pick-btn${!manualMode ? ' active' : ''}`}
+              onClick={() => setManualMode(false)}
+              style={{ padding: '4px 10px', fontSize: 11 }}
+            >
+              {refreshing ? '⏳' : '🔄'} Данные
+            </button>
+            {!manualMode && (
+              <button className="rm-pick-btn" onClick={fetchTrades} style={{ padding: '4px 10px', fontSize: 11 }} disabled={refreshing}>
+                Обновить
+              </button>
+            )}
+            <button
+              className={`rm-pick-btn${manualMode ? ' active' : ''}`}
+              onClick={() => setManualMode(true)}
+              style={{ padding: '4px 10px', fontSize: 11 }}
+            >
+              ✏️ Вручную
+            </button>
+          </div>
         </div>
 
-        {/* Выбор сделки */}
-        {trades.length > 1 && (
+        {/* Ручной ввод */}
+        {manualMode && (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+            {[
+              { key: 'ticker', label: 'Тикер', placeholder: 'BTC' },
+              { key: 'exchangeA', label: 'Биржа 1', placeholder: 'Binance' },
+              { key: 'exchangeB', label: 'Биржа 2', placeholder: 'Bybit' },
+              { key: 'pnl', label: 'PNL $', placeholder: '23.90' },
+              { key: 'fee', label: 'Комиссия $', placeholder: '1.50' },
+              { key: 'funding', label: 'Фандинг $', placeholder: '0.30' },
+            ].map(({ key, label, placeholder }) => (
+              <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: '1 1 80px' }}>
+                <label style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.1em' }}>{label}</label>
+                <input
+                  style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 6, padding: '4px 8px', color: '#fff', fontSize: 13, width: '100%', boxSizing: 'border-box' }}
+                  value={manual[key as keyof typeof manual]}
+                  placeholder={placeholder}
+                  onChange={e => setManual(m => ({ ...m, [key]: e.target.value }))}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Карточка */}
+        <div ref={cardRef} style={{ display: 'block', width: '100%', background: '#0d0f16', borderRadius: 16 }}>
+          <ShareTradeCard trade={currentTrade} userCode={userCode} />
+        </div>
+
+        {/* Выбор сделки (только в авто-режиме) */}
+        {!manualMode && trades.length > 1 && (
           <div className="rm-picker">
             <div className="rm-picker-label">Другая сделка:</div>
             <div className="rm-picker-list">
