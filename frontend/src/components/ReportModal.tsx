@@ -254,7 +254,7 @@ export default function ReportModal({ onClose, onSent }: { onClose: () => void; 
 
   const tgUser = (window as any).Telegram?.WebApp?.initDataUnsafe?.user
   const userCode = tgUser
-    ? (tgUser.username ?? String(tgUser.id)).replace(/[^a-z0-9]/gi, '').slice(0, 6).toUpperCase()
+    ? (tgUser.username ?? String(tgUser.id)).replace(/[^a-z0-9]/gi, '').toUpperCase()
     : 'ARBIX'
 
   return (
