@@ -217,6 +217,102 @@ export async function sendEfirRegistrationAlert(name: string, username: string |
   await Promise.all(ADMIN_IDS.map((id) => tgSend('sendMessage', { chat_id: id, text, parse_mode: 'HTML' })))
 }
 
+// ── Заявка на личную встречу в клуб (форма с лендинга) ───────────────────────
+// Шлёт заполненную анкету в чат заявок (APPLICATIONS_CHAT_ID). Если он не задан —
+// fallback в ЛС всем админам (ADMIN_IDS). Возвращает false, если получатель не
+// настроен вовсе. Вызывается публичным эндпоинтом лендинга.
+export interface ClubApplication {
+  name: string
+  age: string
+  country: string
+  experience: string
+  results: string
+  motivation: string
+  strengths: string
+  role: string
+  report: string
+}
+// Общий отправитель в чат заявок «APCrypto Leads»: используем бот, который УЖЕ
+// состоит в этой группе (APPLICATIONS_BOT_TOKEN, тот же что у лендинга FastMoney).
+// Если не задан — fallback на бот мини-аппа (BOT_TOKEN) / ЛС админам.
+async function sendLeadMessage(text: string): Promise<boolean> {
+  const token = process.env.APPLICATIONS_BOT_TOKEN?.trim() || BOT_TOKEN
+  const chatId = process.env.APPLICATIONS_CHAT_ID?.trim()
+  const targets = chatId ? [chatId] : ADMIN_IDS
+  if (!token || !targets.length) {
+    console.warn('[apply] нет токена или получателя: задайте APPLICATIONS_BOT_TOKEN/APPLICATIONS_CHAT_ID')
+    return false
+  }
+  const results = await Promise.all(
+    targets.map(async (id) => {
+      try {
+        const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: id, text, parse_mode: 'HTML', disable_web_page_preview: true }),
+        })
+        const j = (await r.json()) as { ok?: boolean; description?: string }
+        if (!j.ok) console.error(`[apply] Telegram отклонил (chat ${id}):`, j.description)
+        return Boolean(j.ok)
+      } catch (err) {
+        console.error('[apply] sendMessage error:', (err as Error).message)
+        return false
+      }
+    }),
+  )
+  return results.some(Boolean)
+}
+
+export async function sendClubApplication(a: ClubApplication): Promise<boolean> {
+  const e = escapeHtml
+  return sendLeadMessage(
+    `🎯 <b>Заявка на резидентство в APClub</b>\n\n` +
+    `<b>Имя:</b> ${e(a.name)}\n` +
+    `<b>Возраст:</b> ${e(a.age)}\n` +
+    `<b>Страна:</b> ${e(a.country)}\n\n` +
+    `<b>Опыт в направлении:</b>\n${e(a.experience)}\n\n` +
+    `<b>Результаты за 3 месяца:</b>\n${e(a.results)}\n\n` +
+    `<b>Почему хочет в клуб:</b>\n${e(a.motivation)}\n\n` +
+    `<b>Сильные стороны:</b>\n${e(a.strengths)}\n\n` +
+    `<b>Желаемая роль в клубе:</b>\n${e(a.role)}\n\n` +
+    `<b>Ссылка на отчёт:</b> ${e(a.report)}`,
+  )
+}
+
+// ── Анкета Fast Money (форма-квалификация с лендинга) ─────────────────────────
+export interface FastMoneyApplication {
+  name: string
+  age: string
+  place: string
+  occupation: string
+  readiness: string
+  goals6m: string
+  finGoal: string
+  deposit: string
+  expectations: string
+  telegram: string
+  wantBuddy: boolean
+  buddy: string
+}
+export async function sendFastMoneyApplication(a: FastMoneyApplication): Promise<boolean> {
+  const e = escapeHtml
+  const buddyLine = a.wantBuddy ? `Да${a.buddy ? ` · ${e(a.buddy)}` : ''}` : 'Нет'
+  return sendLeadMessage(
+    `📝 <b>Анкета Fast Money</b>\n\n` +
+    `<b>Имя:</b> ${e(a.name)}\n` +
+    `<b>Возраст:</b> ${e(a.age)}\n` +
+    `<b>Живёт:</b> ${e(a.place)}\n` +
+    `<b>Деятельность:</b> ${e(a.occupation)}\n\n` +
+    `<b>Готовность:</b> ${e(a.readiness)}\n\n` +
+    `<b>Цели на 6 мес:</b>\n${e(a.goals6m)}\n\n` +
+    `<b>Фин. цель (арбитраж):</b>\n${e(a.finGoal)}\n\n` +
+    `<b>Точка А (стартовый депозит):</b> ${e(a.deposit)}\n\n` +
+    `<b>Ожидания от обучения:</b>\n${e(a.expectations)}\n\n` +
+    `<b>Telegram:</b> ${e(a.telegram)}\n` +
+    `<b>Доп. материалы / бадди:</b> ${buddyLine}`,
+  )
+}
+
 // Подтверждение знакомства (из бота-кнопки ИЛИ из приложения): meId отвечает
 // взаимностью на запрос fromId. Это НЕ новый исходящий запрос — недельный лимит
 // не тратится (без coffeeLikeAt). При взаимности — мэтч + уведомление обоим.

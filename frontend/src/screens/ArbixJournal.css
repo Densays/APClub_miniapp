@@ -1,0 +1,18 @@
+.arbix-journal {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #0a0a0f;
+}
+
+.arbix-journal-frame {
+  flex: 1;
+  overflow: hidden;
+}
+
+.arbix-journal-frame iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+}

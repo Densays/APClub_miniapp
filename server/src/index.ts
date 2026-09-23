@@ -1321,11 +1321,11 @@ app.get('/api/admin/tradejournal/connections', ah(async (req, res) => {
 }))
 app.delete('/api/admin/tradejournal/connections/:id', ah(async (req, res) => {
   if (!(await requireAdmin(req, res))) return
-  res.json(await tjDeleteConnection(req.params.id))
+  res.json(await tjDeleteConnection(String(req.params.id)))
 }))
 app.put('/api/admin/tradejournal/connections/:id', ah(async (req, res) => {
   if (!(await requireAdmin(req, res))) return
-  res.json(await tjReplaceConnectionCredentials(req.params.id, req.body ?? {}))
+  res.json(await tjReplaceConnectionCredentials(String(req.params.id), req.body ?? {}))
 }))
 
 const buddyName = (p?: Profile | null) => (p ? (`${p.firstName ?? ''} ${p.lastName ?? ''}`.trim() || p.userId) : '')

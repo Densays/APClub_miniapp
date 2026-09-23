@@ -12,10 +12,11 @@ import Buddy from './screens/Buddy'
 import Networking from './screens/Networking'
 import Showcase from './screens/Showcase'
 import Admin from './screens/Admin'
+import ArbixJournal from './screens/ArbixJournal'
 import BottomNav from './components/BottomNav'
 import Spinner from './components/Spinner'
 
-type Screen = 'home' | 'profile' | 'edit' | 'community' | 'member' | 'achievements' | 'leaderboard' | 'buddy' | 'networking' | 'showcase' | 'admin'
+type Screen = 'home' | 'profile' | 'edit' | 'community' | 'member' | 'achievements' | 'leaderboard' | 'buddy' | 'networking' | 'showcase' | 'admin' | 'arbix-journal'
 
 export default function App() {
   const [tab, setTab] = useState('home')
@@ -75,6 +76,9 @@ export default function App() {
         />
       )
     }
+    if (screen === 'arbix-journal') {
+      return <ArbixJournal onBack={() => setScreen('home')} />
+    }
     if (screen === 'showcase') {
       return <Showcase onBack={() => setScreen('profile')} />
     }
@@ -111,6 +115,7 @@ export default function App() {
         onOpenOnboarding={() => { window.location.href = '/onboarding.html' }}
         onOpenProfile={() => setScreen('profile')}
         onOpenBuddy={() => setScreen('buddy')}
+        onOpenArbix={() => setScreen('arbix-journal')}
       />
     )
   }

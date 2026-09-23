@@ -7,16 +7,19 @@ import { BuddyButton } from '../components/Cards'
 import Tiles from '../components/Tiles'
 import Community from '../components/Community'
 import Arbix from '../components/Arbix'
+import ArbixStats from '../components/ArbixStats'
 import { getNextMeetingInfo, LINKS, openLink } from '../mock'
 
 export default function Home({
   onOpenOnboarding,
   onOpenProfile,
   onOpenBuddy,
+  onOpenArbix,
 }: {
   onOpenOnboarding?: () => void
   onOpenProfile?: () => void
   onOpenBuddy?: () => void
+  onOpenArbix?: () => void
 }) {
   const nextMeeting = getNextMeetingInfo()
   return (
@@ -34,6 +37,8 @@ export default function Home({
 
         <UserCard onClick={onOpenProfile} />
 
+        <ArbixStats />
+
         <Calendar date={new Date()} />
 
         <div className="home-meeting-row">
@@ -49,7 +54,7 @@ export default function Home({
 
         <Community onChat={() => openLink(LINKS.chat)} />
 
-        <Arbix onClick={() => openLink(LINKS.arbix)} />
+        <Arbix onClick={onOpenArbix} />
       </div>
     </div>
   )

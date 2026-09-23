@@ -1,0 +1,184 @@
+.rm-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.65);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.rm-sheet {
+  width: 100%;
+  max-width: 480px;
+  max-height: 90vh;
+  background: #141416;
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.1);
+  padding: 20px 16px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+  box-shadow: 0 32px 80px rgba(0,0,0,0.8);
+}
+
+.rm-handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255,255,255,0.15);
+  margin: 0 auto 4px;
+}
+
+.rm-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  text-align: center;
+}
+
+.rm-loading {
+  text-align: center;
+  color: rgba(255,255,255,0.4);
+  padding: 24px 0;
+  font-size: 14px;
+}
+
+/* Trade card */
+.rc-card {
+  background: linear-gradient(160deg, #12141a 0%, #0d0f16 60%, #0a0c14 100%);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rc-top {
+  display: flex;
+  justify-content: space-between;
+}
+
+.rc-brand {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #fff;
+}
+
+.rc-date {
+  font-size: 10px;
+  color: rgba(255,255,255,0.35);
+}
+
+.rc-label {
+  font-size: 9px;
+  color: rgba(255,255,255,0.35);
+  letter-spacing: 0.2em;
+}
+
+.rc-pnl {
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.rc-stats {
+  display: flex;
+  gap: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.rc-stat-label {
+  font-size: 8px;
+  color: rgba(255,255,255,0.3);
+  letter-spacing: 0.15em;
+  margin-bottom: 2px;
+}
+
+.rc-stat-val {
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.rc-chart {
+  margin: 0 -4px;
+}
+
+.rc-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.rc-ticker {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.rc-exchanges {
+  display: flex;
+  gap: 10px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* Picker */
+.rm-picker-label {
+  font-size: 11px;
+  color: rgba(255,255,255,0.35);
+  margin-bottom: 6px;
+}
+
+.rm-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rm-pick-btn {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 10px;
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.rm-pick-btn.active {
+  border-color: rgba(217,185,116,0.45);
+  background: rgba(217,185,116,0.07);
+}
+
+/* Send button */
+.rm-send-btn {
+  width: 100%;
+  padding: 15px;
+  border-radius: 14px;
+  border: 1px solid var(--gold);
+  background: linear-gradient(180deg, rgba(217,185,116,0.22), rgba(217,185,116,0.07));
+  color: var(--gold);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.rm-send-btn:disabled {
+  opacity: 0.55;
+}
