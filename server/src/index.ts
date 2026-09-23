@@ -1310,7 +1310,7 @@ app.get('/api/admin/tradejournal/users', ah(async (req, res) => {
 }))
 app.get('/api/admin/tradejournal/users/:id', ah(async (req, res) => {
   if (!(await requireAdmin(req, res))) return
-  const profile = await tjUserProfile(req.params.id)
+  const profile = await tjUserProfile(String(req.params.id))
   res.json({ ...profile, apclub: await matchApclubProfile(profile.email) })
 }))
 app.get('/api/admin/tradejournal/connections', ah(async (req, res) => {
