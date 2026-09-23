@@ -189,11 +189,27 @@ export default function ReportModal({ onClose, onSent }: { onClose: () => void; 
   const handleSend = async () => {
     setSending(true)
     try {
-      await fetch(`${JOURNAL_API}/api/miniapp/report`, {
-        method: 'POST', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tradeId: selected.id }),
-      })
+      const t = selected
+      const sign = t.pnl >= 0 ? '+' : ''
+      const text = [
+        `📊 Отчёт по сделке`,
+        ``,
+        `${t.ticker}/USDT · ${t.legA.exchangeLabel} ↔ ${t.legB.exchangeLabel}`,
+        `Результат: *${sign}${fmtMoney(t.pnl)} $*`,
+        t.fee ? `Комиссии: ${fmtMoney(t.fee)} $` : null,
+        t.funding ? `Фандинг: ${fmtMoney(t.funding)} $` : null,
+        ``,
+        `_Arbix Journal_`,
+      ].filter(Boolean).join('\n')
+
+      // Копируем в буфер
+      try { await navigator.clipboard.writeText(text) } catch {}
+
+      // Открываем топик «Отчёты» в Telegram
+      const tg = (window as any).Telegram?.WebApp
+      if (tg?.openTelegramLink) {
+        tg.openTelegramLink('https://t.me/c/2437297030/2')
+      }
     } catch {}
     setSending(false)
     onSent(); onClose()
