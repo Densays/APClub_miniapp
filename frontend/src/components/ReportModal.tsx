@@ -106,7 +106,7 @@ function ShareTradeCard({ trade, userCode }: { trade: Trade; userCode: string })
       background: 'linear-gradient(160deg, #12141a 0%, #0d0f16 60%, #0a0c14 100%)',
       borderRadius: 16, overflow: 'hidden', color: '#fff',
       border: '1px solid rgba(255,255,255,0.08)',
-      width: 600,
+      width: '100%', boxSizing: 'border-box' as const,
     }}>
       {/* TOP */}
       <div style={{ padding: '10px 16px 8px' }}>
@@ -241,7 +241,7 @@ export default function ReportModal({ onClose, onSent }: { onClose: () => void; 
         <div className="rm-title">Отчёт за день</div>
 
         {/* Карточка — точная копия ShareTradeCard */}
-        <div ref={cardRef} style={{ display: 'inline-block' }}>
+        <div ref={cardRef} style={{ display: 'block', width: '100%' }}>
           <ShareTradeCard trade={selected} userCode={userCode} />
         </div>
 
