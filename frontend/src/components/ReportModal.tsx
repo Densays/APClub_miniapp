@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { toPng } from 'html-to-image'
 import './ReportModal.css'
 
 const JOURNAL_API = 'https://trade-journal-arbix.vercel.app'
@@ -176,6 +177,7 @@ export default function ReportModal({ onClose, onSent }: { onClose: () => void; 
   const [trades, setTrades] = useState<Trade[]>(DEMO_TRADES)
   const [selected, setSelected] = useState<Trade>(DEMO_TRADES[0]!)
   const [sending, setSending] = useState(false)
+  const cardRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     fetch(`${JOURNAL_API}/api/miniapp/trades`, { credentials: 'include' })
@@ -189,17 +191,27 @@ export default function ReportModal({ onClose, onSent }: { onClose: () => void; 
   const handleSend = async () => {
     setSending(true)
     try {
+      // 1. Рендерим карточку в PNG прямо в браузере
+      const node = cardRef.current
+      if (!node) return
+      const dataUrl = await toPng(node, { pixelRatio: 2, cacheBust: true })
+
+      // 2. Конвертируем в blob
+      const res = await fetch(dataUrl)
+      const blob = await res.blob()
+
+      // 3. Отправляем PNG на сервер вместе с initData
       const initData = (window as any).Telegram?.WebApp?.initData ?? ''
+      const form = new FormData()
+      form.append('image', blob, 'report.png')
+      form.append('initData', initData)
+
       await fetch(`${JOURNAL_API}/api/miniapp/report`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(initData ? { 'x-telegram-init-data': initData } : {}),
-        },
-        credentials: 'include',
-        body: JSON.stringify({ tradeId: selected.id }),
+        headers: initData ? { 'x-telegram-init-data': initData } : {},
+        body: form,
       })
-    } catch {}
+    } catch (e) { console.error(e) }
     setSending(false)
     onSent(); onClose()
   }
@@ -210,7 +222,9 @@ export default function ReportModal({ onClose, onSent }: { onClose: () => void; 
         <div className="rm-title">Отчёт за день</div>
 
         {/* Карточка — точная копия ShareTradeCard */}
-        <ShareTradeCard trade={selected} />
+        <div ref={cardRef} style={{ display: 'inline-block' }}>
+          <ShareTradeCard trade={selected} />
+        </div>
 
         {/* Выбор сделки */}
         {trades.length > 1 && (
