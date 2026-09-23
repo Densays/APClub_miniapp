@@ -106,9 +106,10 @@ function ShareTradeCard({ trade, userCode }: { trade: Trade; userCode: string })
       background: 'linear-gradient(160deg, #12141a 0%, #0d0f16 60%, #0a0c14 100%)',
       borderRadius: 16, overflow: 'hidden', color: '#fff',
       border: '1px solid rgba(255,255,255,0.08)',
+      width: 600,
     }}>
       {/* TOP */}
-      <div style={{ padding: '16px 20px 12px' }}>
+      <div style={{ padding: '10px 16px 8px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
           {/* Логотип: треугольник + текст */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -120,7 +121,7 @@ function ShareTradeCard({ trade, userCode }: { trade: Trade; userCode: string })
           </div>
         </div>
         <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.2em', marginBottom: 4 }}>ИТОГ СЕССИИ</div>
-        <div style={{ fontSize: 48, fontWeight: 800, color: PNL_COLOR, lineHeight: 1, fontVariantNumeric: 'tabular-nums', marginBottom: 12 }}>
+        <div style={{ fontSize: 32, fontWeight: 800, color: PNL_COLOR, lineHeight: 1, fontVariantNumeric: 'tabular-nums', marginBottom: 8 }}>
           {pnl > 0 ? '+' : ''}{fmtMoney(pnl)} $
         </div>
         <div style={{ display: 'flex', gap: 20, paddingBottom: 12, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
@@ -143,7 +144,7 @@ function ShareTradeCard({ trade, userCode }: { trade: Trade; userCode: string })
         <ArbTwoLineChart />
       </div>
       {/* BOTTOM */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 20px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 15, fontWeight: 800, color: '#fff' }}>{ticker}/USDT</span>
           <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: '#2dd4bf' }}>
