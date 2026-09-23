@@ -68,7 +68,7 @@ function ArbTwoLineChart() {
   const exitY = pts[3]![1].toFixed(1)
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} style={{ display: 'block' }} aria-hidden="true">
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block' }} aria-hidden="true">
       <defs>
         <linearGradient id="sg2" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#2dd4bf" stopOpacity="0.30" />
