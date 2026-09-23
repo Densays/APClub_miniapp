@@ -106,7 +106,7 @@ function ShareTradeCard({ trade, userCode }: { trade: Trade; userCode: string })
       background: 'linear-gradient(160deg, #12141a 0%, #0d0f16 60%, #0a0c14 100%)',
       borderRadius: 16, overflow: 'hidden', color: '#fff',
       border: '1px solid rgba(255,255,255,0.08)',
-      width: 360, minHeight: 640,
+      width: 640, minHeight: 360,
       display: 'flex', flexDirection: 'column',
     }}>
       {/* TOP */}
