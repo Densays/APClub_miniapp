@@ -111,30 +111,30 @@ function ShareTradeCard({ trade, userCode }: { trade: Trade; userCode: string })
       display: 'flex', flexDirection: 'column',
     }}>
       {/* TOP */}
-      <div style={{ padding: '10px 16px 8px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+      <div style={{ padding: '8px 14px 6px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
           {/* Логотип: треугольник + текст */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <img src={arbixLogo} alt="" style={{ height: 24, display: 'block' }} />
-            <span style={{ fontSize: 18, fontWeight: 800, letterSpacing: '0.08em', color: '#fff' }}>Arbix</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <img src={arbixLogo} alt="" style={{ height: 18, display: 'block' }} />
+            <span style={{ fontSize: 14, fontWeight: 800, letterSpacing: '0.08em', color: '#fff' }}>Arbix</span>
           </div>
-          <div style={{ textAlign: 'right', fontSize: 10, color: 'rgba(255,255,255,0.4)', lineHeight: 1.6 }}>
+          <div style={{ textAlign: 'right', fontSize: 9, color: 'rgba(255,255,255,0.4)', lineHeight: 1.4 }}>
             <div>{dateStr}</div><div>{timeStr}</div>
           </div>
         </div>
-        <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.2em', marginBottom: 4 }}>ИТОГ СЕССИИ</div>
-        <div style={{ fontSize: 32, fontWeight: 800, color: PNL_COLOR, lineHeight: 1, fontVariantNumeric: 'tabular-nums', marginBottom: 8 }}>
+        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.2em', marginBottom: 2 }}>ИТОГ СЕССИИ</div>
+        <div style={{ fontSize: 26, fontWeight: 800, color: PNL_COLOR, lineHeight: 1, fontVariantNumeric: 'tabular-nums', marginBottom: 6 }}>
           {pnl > 0 ? '+' : ''}{fmtMoney(pnl)} $
         </div>
-        <div style={{ display: 'flex', gap: 20, paddingBottom: 12, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <div style={{ display: 'flex', gap: 16, paddingBottom: 6, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
           {[
             { label: 'СДЕЛКА', value: pnlNoFees },
             { label: 'ФАНДИНГ', value: funding },
             { label: 'КОМИССИЯ', value: -Math.abs(fee) },
           ].map((item, i) => (
             <div key={i}>
-              <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.18em', marginBottom: 3 }}>{item.label}</div>
-              <div style={{ fontSize: 15, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: item.value > 0 ? GREEN : item.value < 0 ? RED : 'rgba(255,255,255,0.5)' }}>
+              <div style={{ fontSize: 7, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.18em', marginBottom: 2 }}>{item.label}</div>
+              <div style={{ fontSize: 12, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: item.value > 0 ? GREEN : item.value < 0 ? RED : 'rgba(255,255,255,0.5)' }}>
                 {item.value > 0 ? '+' : ''}{fmtMoney(item.value)} $
               </div>
             </div>
@@ -142,11 +142,11 @@ function ShareTradeCard({ trade, userCode }: { trade: Trade; userCode: string })
         </div>
       </div>
       {/* CHART */}
-      <div style={{ padding: '4px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', flex: 1, minHeight: 0 }}>
+      <div style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', flex: 1, minHeight: 0, overflow: 'hidden' }}>
         <ArbTwoLineChart />
       </div>
       {/* BOTTOM */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 16px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 14px', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 15, fontWeight: 800, color: '#fff' }}>{ticker}/USDT</span>
           <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: '#2dd4bf' }}>
