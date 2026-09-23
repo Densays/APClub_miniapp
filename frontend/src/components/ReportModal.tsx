@@ -191,29 +191,36 @@ export default function ReportModal({ onClose, onSent }: { onClose: () => void; 
   const handleSend = async () => {
     setSending(true)
     try {
-      // 1. Рендерим карточку в PNG прямо в браузере
+      // Рендерим карточку в PNG
       const node = cardRef.current
       if (!node) return
-      const dataUrl = await toPng(node, { pixelRatio: 2, cacheBust: true })
 
-      // 2. Конвертируем в blob
-      const res = await fetch(dataUrl)
-      const blob = await res.blob()
-
-      // 3. Отправляем PNG на сервер вместе с initData
-      const initData = (window as any).Telegram?.WebApp?.initData ?? ''
-      const form = new FormData()
-      form.append('image', blob, 'report.png')
-      form.append('initData', initData)
-
-      await fetch(`${JOURNAL_API}/api/miniapp/report`, {
-        method: 'POST',
-        headers: initData ? { 'x-telegram-init-data': initData } : {},
-        body: form,
+      const dataUrl = await toPng(node, {
+        pixelRatio: 2,
+        cacheBust: true,
+        width: node.offsetWidth,
+        height: node.offsetHeight,
       })
+
+      // Копируем PNG в буфер обмена
+      try {
+        const res = await fetch(dataUrl)
+        const blob = await res.blob()
+        await navigator.clipboard.write([
+          new ClipboardItem({ 'image/png': blob })
+        ])
+      } catch {
+        // Fallback если clipboard API не поддерживается
+      }
+
+      // Открываем топик «Отчёты»
+      const tg = (window as any).Telegram?.WebApp
+      if (tg?.openTelegramLink) {
+        tg.openTelegramLink('https://t.me/c/2437297030/2')
+      }
     } catch (e) { console.error(e) }
     setSending(false)
-    onSent(); onClose()
+    onSent()
   }
 
   return (
@@ -244,7 +251,7 @@ export default function ReportModal({ onClose, onSent }: { onClose: () => void; 
         )}
 
         <button className="rm-send-btn" onClick={handleSend} disabled={sending}>
-          {sending ? 'Отправляю...' : '📤 Отправить в топик Отчёты'}
+          {sending ? '✓ Скопировано — вставьте в Telegram' : '📋 Скопировать и открыть чат'}
         </button>
       </div>
     </div>
