@@ -17,122 +17,6 @@ type Trade = {
   legB: { exchangeLabel: string; direction: string }
 }
 
-// ── Рендер карточки в Canvas для шаринга ──────────────────────────────────
-function renderCardToCanvas(trade: Trade): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    const W = 700; const H = 380
-    const canvas = document.createElement('canvas')
-    canvas.width = W; canvas.height = H
-    const ctx = canvas.getContext('2d')!
-
-    // Фон
-    ctx.fillStyle = '#0c0c0e'
-    roundRect(ctx, 0, 0, W, H, 20)
-    ctx.fill()
-
-    // Рамка
-    ctx.strokeStyle = 'rgba(255,255,255,0.06)'
-    ctx.lineWidth = 1
-    roundRect(ctx, 0.5, 0.5, W - 1, H - 1, 20)
-    ctx.stroke()
-
-    // ARBIX
-    ctx.fillStyle = 'white'
-    ctx.font = 'bold 22px Arial'
-    ctx.letterSpacing = '4px'
-    ctx.fillText('ARBIX', 36, 48)
-    ctx.letterSpacing = '0px'
-    ctx.fillStyle = 'rgba(255,255,255,0.3)'
-    ctx.font = '11px Arial'
-    ctx.fillText('JOURNAL', 36, 68)
-
-    // Тикер
-    ctx.fillStyle = 'white'
-    ctx.font = 'bold 20px Arial'
-    ctx.textAlign = 'center'
-    ctx.fillText(`${trade.ticker}/USDT`, W / 2, 110)
-    ctx.fillStyle = 'rgba(255,255,255,0.4)'
-    ctx.font = '13px Arial'
-    ctx.fillText(`${trade.legA.exchangeLabel} ↔ ${trade.legB.exchangeLabel}`, W / 2, 130)
-
-    // График (статичный спред)
-    drawSpreadChart(ctx, 70, 140, 560, 110)
-
-    // PNL
-    const isPos = trade.pnl >= 0
-    ctx.fillStyle = isPos ? '#4ade80' : '#fb7185'
-    ctx.font = 'bold 38px Arial'
-    ctx.textAlign = 'center'
-    const sign = isPos ? '+' : ''
-    ctx.fillText(`${sign}${fmtMoney(trade.pnl)} $`, W / 2, 300)
-
-    // Подпись
-    ctx.fillStyle = 'rgba(255,255,255,0.2)'
-    ctx.font = '11px Arial'
-    ctx.fillText('arbix.pro', W / 2, 350)
-
-    canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('canvas toBlob failed')), 'image/png')
-  })
-}
-
-function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
-  ctx.beginPath()
-  ctx.moveTo(x + r, y)
-  ctx.lineTo(x + w - r, y)
-  ctx.arcTo(x + w, y, x + w, y + r, r)
-  ctx.lineTo(x + w, y + h - r)
-  ctx.arcTo(x + w, y + h, x + w - r, y + h, r)
-  ctx.lineTo(x + r, y + h)
-  ctx.arcTo(x, y + h, x, y + h - r, r)
-  ctx.lineTo(x, y + r)
-  ctx.arcTo(x, y, x + r, y, r)
-  ctx.closePath()
-}
-
-function drawSpreadChart(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
-  const pts: [number, number][] = [[0,54],[160,50],[280,68],[480,12],[560,12]]
-  function halfSpread(px: number) {
-    if (px >= 480) return 0
-    const t = px / 480
-    return Math.max(1, (18 + 8 * Math.sin(t * Math.PI * 3)) * Math.pow(1 - t, 0.6))
-  }
-  const scaleX = w / 560; const scaleY = h / 110
-
-  function drawLine(offset: (px: number) => number, color: string) {
-    ctx.beginPath()
-    ctx.strokeStyle = color
-    ctx.lineWidth = 2
-    ctx.lineCap = 'round'
-    for (let i = 0; i < pts.length; i++) {
-      const [px, py] = pts[i]!
-      const cx = x + px * scaleX
-      const cy = y + (py + offset(px)) * scaleY
-      if (i === 0) ctx.moveTo(cx, cy)
-      else {
-        const [ppx, ppy] = pts[i - 1]!
-        const pmx = x + (ppx + px) / 2 * scaleX
-        ctx.bezierCurveTo(pmx, y + (ppy + offset(ppx)) * scaleY, pmx, cy, cx, cy)
-      }
-    }
-    ctx.stroke()
-  }
-
-  drawLine(px => -halfSpread(px), '#2dd4bf')
-  drawLine(px => +halfSpread(px), '#a855f7')
-
-  // Точки входа
-  const entryX = x + 80 * scaleX
-  ctx.fillStyle = '#2dd4bf'
-  ctx.beginPath(); ctx.arc(entryX, y + (54 - halfSpread(80)) * scaleY, 4, 0, Math.PI * 2); ctx.fill()
-  ctx.fillStyle = '#a855f7'
-  ctx.beginPath(); ctx.arc(entryX, y + (54 + halfSpread(80)) * scaleY, 4, 0, Math.PI * 2); ctx.fill()
-
-  // Точка выхода
-  ctx.fillStyle = 'white'
-  ctx.beginPath(); ctx.arc(x + 480 * scaleX, y + 12 * scaleY, 4, 0, Math.PI * 2); ctx.fill()
-}
-
-
 function fmtMoney(n: number) {
   return n.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
@@ -305,21 +189,16 @@ export default function ReportModal({ onClose, onSent }: { onClose: () => void; 
   const handleSend = async () => {
     setSending(true)
     try {
-      const blob = await renderCardToCanvas(selected)
-      const file = new File([blob], 'arbix-report.png', { type: 'image/png' })
-
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          files: [file],
-          title: 'Отчёт Arbix Journal',
-        })
-      } else {
-        // Fallback: скачиваем картинку
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url; a.download = 'arbix-report.png'; a.click()
-        URL.revokeObjectURL(url)
-      }
+      const initData = (window as any).Telegram?.WebApp?.initData ?? ''
+      await fetch(`${JOURNAL_API}/api/miniapp/report`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(initData ? { 'x-telegram-init-data': initData } : {}),
+        },
+        credentials: 'include',
+        body: JSON.stringify({ tradeId: selected.id }),
+      })
     } catch {}
     setSending(false)
     onSent(); onClose()
@@ -351,7 +230,7 @@ export default function ReportModal({ onClose, onSent }: { onClose: () => void; 
         )}
 
         <button className="rm-send-btn" onClick={handleSend} disabled={sending}>
-          {sending ? 'Генерирую...' : '📤 Поделиться карточкой'}
+          {sending ? 'Отправляю...' : '📤 Отправить в топик Отчёты'}
         </button>
       </div>
     </div>
