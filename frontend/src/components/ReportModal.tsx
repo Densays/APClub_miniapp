@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import './ReportModal.css'
 
 const JOURNAL_API = 'https://trade-journal-arbix.vercel.app'
