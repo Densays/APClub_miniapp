@@ -279,6 +279,51 @@ export async function sendClubApplication(a: ClubApplication): Promise<boolean> 
   )
 }
 
+// ── Лид из квиза «Закулисье арбитража» ───────────────────────────────────────
+// Приходит с квиз-приложения после прохождения диагностики: контакты плюс
+// полный список ответов и рассчитанные зоны роста.
+export interface QuizLead {
+  name: string
+  telegram: string
+  phone: string
+  email: string
+  profile: string
+  source: string
+  answers: { q: string; a: string }[]
+  scores: { label: string; value: number }[]
+}
+export async function sendQuizLead(a: QuizLead): Promise<boolean> {
+  const e = escapeHtml
+  const contacts = [
+    a.telegram ? `<b>Telegram:</b> ${e(a.telegram)}` : '',
+    a.phone ? `<b>Телефон:</b> ${e(a.phone)}` : '',
+    a.email ? `<b>Email:</b> ${e(a.email)}` : '',
+  ].filter(Boolean).join('\n')
+
+  // Вопрос жирным, ответ курсивом в цитате — так заявку читать проще,
+  // чем сплошной список из пар «строка → строка».
+  const answers = a.answers.length
+    ? '\n\n<b>━━ Ответы ━━</b>\n\n' +
+      a.answers.map((x) => `<b>${e(x.q)}</b>\n<blockquote><i>${e(x.a)}</i></blockquote>`).join('\n')
+    : ''
+
+  const scores = a.scores.length
+    ? '\n<b>━━ Зоны роста ━━</b>\n<blockquote>' +
+      a.scores.map((s) => `<i>${e(s.label)}</i> — <b>${s.value}%</b>`).join('\n') +
+      '</blockquote>'
+    : ''
+
+  return sendLeadMessage(
+    `🤝 <b>Знакомство ЛК</b>\n\n` +
+    `<b>Имя:</b> ${e(a.name)}\n` +
+    contacts +
+    (a.profile ? `\n<b>Профиль:</b> <i>${e(a.profile)}</i>` : '') +
+    answers +
+    scores +
+    (a.source ? `\n\n<i>Источник: ${e(a.source)}</i>` : ''),
+  )
+}
+
 // ── Анкета Fast Money (форма-квалификация с лендинга) ─────────────────────────
 export interface FastMoneyApplication {
   name: string
@@ -348,10 +393,29 @@ async function handleCallback(cq: CallbackQuery): Promise<void> {
   }
 }
 
+type ChatJoinRequest = {
+  chat: { id: number }
+  from: { id: number }
+}
+
 type Update = {
   update_id: number
   message?: { chat?: { id: number }; text?: string }
   callback_query?: CallbackQuery
+  chat_join_request?: ChatJoinRequest
+}
+
+// Авто-апрув заявки на вход в группу/канал.
+async function handleJoinRequest(req: ChatJoinRequest): Promise<void> {
+  try {
+    await fetch(TG('approveChatJoinRequest'), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: req.chat.id, user_id: req.from.id }),
+    })
+    console.log(`[bot] approved join request: user ${req.from.id} in chat ${req.chat.id}`)
+  } catch (e) {
+    console.error('[bot] approveChatJoinRequest error:', (e as Error).message)
+  }
 }
 
 // Обработка одного апдейта (общая для polling и webhook).
@@ -359,6 +423,7 @@ export async function handleUpdate(u: Update): Promise<void> {
   // Любой апдейт — повод разослать «дозревшие» отложенные вторые сообщения
   // (на serverless нет фонового таймера; вебхук — самый частый триггер).
   await flushFollowups()
+  if (u.chat_join_request) { await handleJoinRequest(u.chat_join_request); return }
   if (u.callback_query) { await handleCallback(u.callback_query); return }
   const chatId = u.message?.chat?.id
   if (!chatId) return
@@ -374,7 +439,7 @@ export async function setWebhook(url: string): Promise<{ ok: boolean; error?: st
   try {
     const r = await fetch(TG('setWebhook'), {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url, allowed_updates: ['message', 'callback_query'], drop_pending_updates: true }),
+      body: JSON.stringify({ url, allowed_updates: ['message', 'callback_query', 'chat_join_request'], drop_pending_updates: true }),
     })
     const d = (await r.json().catch(() => ({}))) as { ok?: boolean; description?: string }
     return { ok: Boolean(d.ok), error: d.ok ? undefined : d.description }
@@ -390,7 +455,7 @@ async function pollLoop(): Promise<void> {
   let offset = 0
   while (running) {
     try {
-      const r = await fetch(TG('getUpdates') + `?timeout=30&offset=${offset}&allowed_updates=["message","callback_query"]`)
+      const r = await fetch(TG('getUpdates') + `?timeout=30&offset=${offset}&allowed_updates=["message","callback_query","chat_join_request"]`)
       const data = (await r.json().catch(() => ({}))) as { ok?: boolean; result?: Update[]; description?: string }
       if (!data.ok) {
         // 409 Conflict — если параллельно запущен другой поллер/вебхук. Ждём и пробуем снова.
